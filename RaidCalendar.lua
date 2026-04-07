@@ -100,6 +100,14 @@ function RaidCalendar.events:ADDON_LOADED()
 				m.RaidTracker.request_role_check()
 			end
 		end, 5 )
+		-- Re-vérification périodique des rôles toutes les 5 minutes
+		m.ace_timer.ScheduleRepeatingTimer( m, function()
+			if m.db and m.db.user_settings and m.db.user_settings.discord_id then
+				if m.RaidTracker and m.RaidTracker.request_role_check then
+					m.RaidTracker.request_role_check()
+				end
+			end
+		end, 300 )
 	end
 
 	-- Bot status detection:
