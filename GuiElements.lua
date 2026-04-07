@@ -102,7 +102,9 @@ M.spec_icons = {
 ---@return TinyButton
 function M.tiny_button( parent, text, tooltip, color, font_size )
 	local font_x, font_y
+	local fs
 	font_size = font_size or 13
+
 	---@class TinyButton: Button
 	local button = CreateFrame( "Button", nil, parent )
 	button.active = false
@@ -132,11 +134,12 @@ function M.tiny_button( parent, text, tooltip, color, font_size )
 		button:SetPushedTextOffset( 0, 0 )
 
 		if string.upper( text ) == text then
-			font_x = text == "?" and -.5 or 0
-			font_y = 0.5
+			font_x = 0
+			font_y = 0
 			font_size = font_size or 10
 		else
-			font_x, font_y = -.5, 1.5
+			font_x = 0
+			font_y = 0
 			font_size = font_size or 14
 		end
 	else
@@ -158,22 +161,30 @@ function M.tiny_button( parent, text, tooltip, color, font_size )
 
 		if text ~= 'X' then
 			button:SetText( text )
-			button:SetPushedTextOffset( -1.5, -1.5 )
+			button:SetPushedTextOffset( 0, 0 )
 
 			if string.upper( text ) == text then
-				font_x, font_y = 0, 0
+				font_x = 0
+				font_y = 0
 				font_size = font_size or 13
 			else
-				font_x, font_y = -1, 2
+				font_x = 0
+				font_y = 0
 				font_size = font_size or 15
 			end
 		end
 	end
 
 	if m.pfui_skin_enabled or text ~= "X" then
-		button:GetFontString():SetFont( "FONTS\\FRIZQT__.TTF", font_size, "" )
-		button:GetFontString():SetTextColor( color.r, color.g, color.b, color.a or 1 )
-		button:GetFontString():SetPoint( "Center", button, "Center", font_x, font_y )
+		fs = button:GetFontString()
+		if fs then
+			fs:SetFont( "FONTS\\FRIZQT__.TTF", font_size, "" )
+			fs:SetTextColor( color.r, color.g, color.b, color.a or 1 )
+			fs:ClearAllPoints()
+			fs:SetPoint( "CENTER", button, "CENTER", font_x or 0, font_y or 0 )
+			fs:SetJustifyH( "CENTER" )
+			fs:SetJustifyV( "MIDDLE" )
+		end
 	end
 
 	button:SetScript( "OnEnter", function()
@@ -202,13 +213,19 @@ function M.tiny_button( parent, text, tooltip, color, font_size )
 
 	local orig_disable = button.Disable
 	function button:Disable()
-		button:GetFontString():SetTextColor( 0.5, 0.5, 0.5, 0.5 )
+		local font_string = button:GetFontString()
+		if font_string then
+			font_string:SetTextColor( 0.5, 0.5, 0.5, 0.5 )
+		end
 		orig_disable( self )
 	end
 
 	local orig_enable = button.Enable
 	function button:Enable()
-		button:GetFontString():SetTextColor( color.r, color.g, color.b, color.a or 1 )
+		local font_string = button:GetFontString()
+		if font_string then
+			font_string:SetTextColor( color.r, color.g, color.b, color.a or 1 )
+		end
 		orig_enable( self )
 	end
 
@@ -400,36 +417,58 @@ function M.create_online_indicator( parent, relative_region )
 	frame.texture:SetVertexColor( 1, 1, 0, 1 )
 
 	frame:EnableMouse( true )
-	frame:SetScript( "OnEnter", function()
-		GameTooltip:SetOwner( frame, "ANCHOR_RIGHT" )
+
+	local function show_tooltip()
 		local bot = m.db.user_settings.bot_name or "Bot"
-		local status_str = frame.is_online and (m.L and m.L( "ui.online" ) or "online") or (m.L and m.L( "ui.offline" ) or "offline")
-		local tooltip_fmt = m.L and m.L( "ui.online_tooltip", { bot = bot, status = status_str } ) or (bot .. " is " .. status_str)
+		local state = m.get_bot_state and m.get_bot_state() or "OFFLINE"
+		local status_key = "ui.offline"
+		if state == "ONLINE" then
+			status_key = "ui.online"
+		elseif state == "DEGRADED" then
+			status_key = "ui.degraded"
+		end
+		local status_str = m.L and m.L( status_key ) or state
+		local tooltip_fmt = m.L and m.L( "ui.online_tooltip", { bot = bot, status = status_str } )
+			or (bot .. " : " .. status_str)
+		GameTooltip:SetOwner( frame, "ANCHOR_RIGHT" )
 		GameTooltip:SetText( tooltip_fmt )
-		GameTooltip:SetScale( 0.8 )
 		GameTooltip:Show()
+	end
+
+	frame:SetScript( "OnEnter", function() show_tooltip() end )
+	frame:SetScript( "OnLeave", function()
+		if GameTooltip:IsVisible() then GameTooltip:Hide() end
 	end )
 
-	frame:SetScript( "OnLeave", function()
-		GameTooltip:SetScale( 1 )
-		GameTooltip:Hide()
+	-- Refresh the status icon every second while visible.
+	-- Uses arg1 accumulator (delta time) instead of time() to avoid a syscall every frame.
+	local _elapsed = 0
+	local function _on_update()
+		_elapsed = _elapsed + arg1
+		if _elapsed < 1 then return end
+		_elapsed = 0
+		frame.update()
+	end
+	frame:SetScript( "OnUpdate", _on_update )
+	frame:SetScript( "OnHide", function()
+		frame:SetScript( "OnUpdate", nil )
+	end )
+	frame:SetScript( "OnShow", function()
+		_elapsed = 0
+		frame:SetScript( "OnUpdate", _on_update )
 	end )
 
 	frame.update = function()
 		local r, g, b, a = m.bot_online_status()
 		frame.texture:SetVertexColor( r, g, b, a )
-		frame.is_online = r == 0
-		-- Refresh tooltip text live if it's currently visible on this frame
-		local tt_owner = GameTooltip.GetOwner and GameTooltip:GetOwner() or nil
-		if GameTooltip:IsVisible() and tt_owner == frame then
-			local bot = m.db.user_settings.bot_name or "Bot"
-			local status_str = frame.is_online and (m.L and m.L( "ui.online" ) or "online") or (m.L and m.L( "ui.offline" ) or "offline")
-			local tooltip_fmt = m.L and m.L( "ui.online_tooltip", { bot = bot, status = status_str } ) or (bot .. " is " .. status_str)
-			GameTooltip:SetText( tooltip_fmt )
-			GameTooltip:Show()
+		frame.state = m.get_bot_state and m.get_bot_state() or "OFFLINE"
+		frame.is_online = frame.state == "ONLINE"
+		-- Refresh tooltip if currently shown on this frame
+		if GameTooltip:IsVisible() then
+			local tt_owner = GameTooltip.GetOwner and GameTooltip:GetOwner() or nil
+			if tt_owner == frame then show_tooltip() end
 		end
 	end
-
 
 	return frame
 end
@@ -767,7 +806,7 @@ function M.pfui_skin( frame )
 	end
 
 	if name == "RaidCalendarPopupPfui" then
-		-- Pfui theme: has calendar_panel, detail_panel — no border_events/scroll_bar/discord
+		-- Pfui theme: has calendar_panel, detail_panel - no border_events/scroll_bar/discord
 		frame.btn_refresh:SetPoint( "Right", frame.titlebar.btn_close, "Left", -4, 0 )
 		frame.btn_settings:SetPoint( "Right", frame.btn_refresh, "Left", -4, 0 )
 
@@ -867,6 +906,60 @@ function M.pfui_skin( frame )
 
 		m.api.pfUI.api.StripTextures( frame.input_discord, nil, "BACKGROUND" )
 		m.api.pfUI.api.CreateBackdrop( frame.input_discord, nil, true )
+	end
+
+	if name == "RaidCalendarLocalEventPopup" then
+		m.api.pfUI.api.SkinButton( frame.btn_edit )
+		m.api.pfUI.api.SkinButton( frame.btn_delete )
+		m.api.pfUI.api.SkinButton( frame.btn_close_bottom )
+		if frame.btn_edit        then frame.btn_edit:SetHeight( 22 ) end
+		if frame.btn_delete      then frame.btn_delete:SetHeight( 22 ) end
+		if frame.btn_close_bottom then frame.btn_close_bottom:SetHeight( 22 ) end
+	end
+
+	if name == "RaidCalendarManagePopup" then
+		-- Skin tous les boutons
+		m.api.pfUI.api.SkinButton( frame.btn_submit )
+		m.api.pfUI.api.SkinButton( frame.btn_delete )
+		m.api.pfUI.api.SkinButton( frame.btn_cancel )
+		if frame.btn_submit  then frame.btn_submit:SetHeight( 22 )  end
+		if frame.btn_delete  then frame.btn_delete:SetHeight( 22 )  end
+		if frame.btn_cancel  then frame.btn_cancel:SetHeight( 22 )  end
+
+		-- Skin les inputs (strip WoW default textures + CreateBackdrop pfUI)
+		local inputs = {
+			frame.inp_title, frame.inp_date, frame.inp_time,
+			frame.inp_limit, frame.inp_template, frame.inp_location,
+			-- inp_desc exclu : desc_bg fournit déjà la bordure
+		}
+		for _, eb in inputs do
+			if eb then
+				m.api.pfUI.api.StripTextures( eb, nil, "BACKGROUND" )
+				m.api.pfUI.api.CreateBackdrop( eb, nil, true )
+			end
+		end
+
+		-- Skin la zone description et l'en-tete
+		if frame.desc_bg then
+			m.api.pfUI.api.StripTextures( frame.desc_bg, nil, "BACKGROUND" )
+			m.api.pfUI.api.CreateBackdrop( frame.desc_bg, nil, true )
+		end
+		if frame.header_bg then
+			m.api.pfUI.api.StripTextures( frame.header_bg, nil, "BACKGROUND" )
+			m.api.pfUI.api.CreateBackdrop( frame.header_bg, nil, true )
+		end
+	end
+
+	if name == "RaidCalendarGroupPopup" then
+		if frame.btn_apply    then m.api.pfUI.api.SkinButton( frame.btn_apply    ); frame.btn_apply:SetHeight( 22 )    end
+		if frame.btn_save     then m.api.pfUI.api.SkinButton( frame.btn_save     ); frame.btn_save:SetHeight( 22 )     end
+		if frame.btn_reload      then m.api.pfUI.api.SkinButton( frame.btn_reload      ); frame.btn_reload:SetHeight( 22 )      end
+		if frame.btn_clear       then m.api.pfUI.api.SkinButton( frame.btn_clear       ); frame.btn_clear:SetHeight( 22 )       end
+		if frame.btn_auto        then m.api.pfUI.api.SkinButton( frame.btn_auto        ); frame.btn_auto:SetHeight( 22 )        end
+		if frame.btn_announce    then m.api.pfUI.api.SkinButton( frame.btn_announce    ); frame.btn_announce:SetHeight( 22 )    end
+		if frame.btn_take_lead   then m.api.pfUI.api.SkinButton( frame.btn_take_lead   ); frame.btn_take_lead:SetHeight( 22 )   end
+		if frame.btn_assistant   then m.api.pfUI.api.SkinButton( frame.btn_assistant   ); frame.btn_assistant:SetHeight( 22 )   end
+		if frame.btn_close       then m.api.pfUI.api.SkinButton( frame.btn_close       ); frame.btn_close:SetHeight( 22 )       end
 	end
 end
 

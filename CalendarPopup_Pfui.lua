@@ -30,6 +30,7 @@ function M.new()
 	local events_by_day = {}
 	local day_cells = {}
 	local detail_items = {}
+	local local_events_requested = false
 	local current_month_time
 	local gui = m.GuiElements
 
@@ -67,26 +68,22 @@ function M.new()
 		}
 	end
 
-	local function get_color_components( color_string )
-		local color = {}
-		for c in string.gmatch( color_string or "", "%s*([^,]+)%s*" ) do
-			table.insert( color, c )
-		end
-
-		return {
-			r = ((tonumber( color[ 1 ] ) or 120) / 255),
-			g = ((tonumber( color[ 2 ] ) or 120) / 255),
-			b = ((tonumber( color[ 3 ] ) or 120) / 255),
-			a = tonumber( color[ 4 ] ) or 1
-		}
-	end
-
 	local function get_today()
 		return normalize_day( time( date( "*t" ) ) )
 	end
 
 	local function get_day_key( timestamp )
 		return tostring( normalize_day( timestamp ) )
+	end
+
+	local function truncate_cell_label( text, max_len )
+		if not text then
+			return ""
+		end
+		if string.len( text ) <= max_len then
+			return text
+		end
+		return string.sub( text, 1, max_len - 3 ) .. "..."
 	end
 
 	local function get_month_info( timestamp )
@@ -130,6 +127,15 @@ function M.new()
 		return normalize_day( time( month_info ) )
 	end
 
+	local function add_days_safe( timestamp, day_offset )
+		local info = date( "*t", timestamp )
+		info.day = info.day + day_offset
+		info.hour = 12
+		info.min = 0
+		info.sec = 0
+		return normalize_day( time( info ) )
+	end
+
 	local function build_event_cache()
 		events_by_day = {}
 
@@ -138,9 +144,14 @@ function M.new()
 		end
 
 		for _, item in ipairs( events ) do
-			local event = m.db.events[ item.key ]
-			if event and event.startTime then
-				local day_key = get_day_key( event.startTime )
+			local event_data
+			if item.source == "local" then
+				event_data = m.db.local_events and m.db.local_events[ item.key ]
+			else
+				event_data = m.db.events[ item.key ]
+			end
+			if event_data and event_data.startTime then
+				local day_key = get_day_key( event_data.startTime )
 				events_by_day[ day_key ] = events_by_day[ day_key ] or {}
 				table.insert( events_by_day[ day_key ], item )
 			end
@@ -151,7 +162,11 @@ function M.new()
 		if not events or force then
 			events = {}
 			for key, value in pairs( m.db.events ) do
-				table.insert( events, { key = key, value = value.startTime } )
+				table.insert( events, { key = key, value = value.startTime, source = "raidhelper" } )
+			end
+			-- Inclure les evenements locaux (in-game)
+			for key, value in pairs( m.db.local_events or {} ) do
+				table.insert( events, { key = key, value = value.startTime, source = "local" } )
 			end
 
 			table.sort( events, function( a, b )
@@ -161,7 +176,6 @@ function M.new()
 			build_event_cache()
 
 			if getn( events ) == 0 then
-				m.info( m.L( "ui.loading_events" ) )
 				m.msg.request_events()
 			end
 		end
@@ -172,6 +186,19 @@ function M.new()
 			return nil
 		end
 		return events_by_day[ tostring( selected_day ) ] or {}
+	end
+
+	local function request_local_events_once( force )
+		if not m.msg or not m.msg.request_local_events then
+			return
+		end
+		if force then
+			local_events_requested = false
+		end
+		if not local_events_requested then
+			local_events_requested = true
+			m.msg.request_local_events()
+		end
 	end
 
 	local function ensure_selected_day()
@@ -222,7 +249,6 @@ function M.new()
 		popup.detail_panel.header:SetText( m.L( "ui.month_events" ) )
 		popup.detail_panel.empty:SetText( m.L( "ui.no_events_month" ) )
 		popup.empty_state:SetText( m.L( "ui.no_events_loaded" ) )
-		getglobal( popup.settings.use_char_name:GetName() .. "Text" ):SetText( m.L( "ui.use_character_name" ) )
 		popup.settings.label_timeformat:SetText( m.L( "ui.time_format" ) )
 		popup.settings.label_locale:SetText( m.L( "ui.language" ) )
 		if popup.settings.lbl_theme then popup.settings.lbl_theme:SetText( m.L( "ui.ui_theme" ) ) end
@@ -235,9 +261,8 @@ function M.new()
 		} )
 		popup.settings.locale_flag:SetItems( {
 			{ value = "enUS", text = m.locale_native_name and m.locale_native_name( "enUS" ) or "English" },
-			{ value = "frFR", text = m.locale_native_name and m.locale_native_name( "frFR" ) or "Français" }
+			{ value = "frFR", text = m.locale_native_name and m.locale_native_name( "frFR" ) or "Francais" }
 		} )
-		center_checkbox_with_text( popup.settings, popup.settings.use_char_name, -15 )
 	end
 
 	local function on_save_settings()
@@ -254,7 +279,8 @@ function M.new()
 		local locale_changed = selected_locale_flag ~= previous_locale_flag
 		local tf_manually_changed = selected_time_format ~= previous_time_format
 
-		m.db.user_settings.use_character_name = popup.settings.use_char_name:GetChecked()
+		-- use_character_name est force a 1 (case a cocher supprimee)
+		m.db.user_settings.use_character_name = 1
 		m.db.user_settings.time_format = selected_time_format
 		m.db.user_settings.locale_flag = selected_locale_flag
 		m.db.user_settings.ui_theme = theme_to_apply
@@ -327,9 +353,14 @@ function M.new()
 		end
 
 		for _, item in ipairs( events ) do
-			local event = m.db.events[ item.key ]
-			if event and event.startTime then
-				local event_info = date( "*t", event.startTime )
+			local ev
+			if item.source == "local" then
+				ev = m.db.local_events and m.db.local_events[ item.key ]
+			else
+				ev = m.db.events[ item.key ]
+			end
+			if ev and ev.startTime then
+				local event_info = date( "*t", ev.startTime )
 				if event_info.month == month_info.month and event_info.year == month_info.year then
 					table.insert( month_events, item )
 				end
@@ -357,7 +388,14 @@ function M.new()
 		end
 
 		for i, item in ipairs( month_events ) do
-			local event = m.db.events[ item.key ]
+			local is_local = (item.source == "local")
+			local event
+			if is_local then
+				event = m.db.local_events and m.db.local_events[ item.key ]
+			else
+				event = m.db.events[ item.key ]
+			end
+			if not event then break end
 			local frame = detail_items[ i ]
 
 			if not frame then
@@ -399,6 +437,23 @@ function M.new()
 				frame.selected:Hide()
 
 				frame:SetScript( "OnClick", function()
+					if not frame.event_key then
+						return
+					end
+
+					if frame.event_source == "local" then
+						local local_event = m.db.local_events and m.db.local_events[ frame.event_key ]
+						selected_event_key = frame.event_key
+						if local_event and local_event.startTime then
+							selected_day = normalize_day( local_event.startTime )
+						end
+						if m.LocalEventPopup then
+							m.LocalEventPopup.show( frame.event_key )
+						end
+						popup.refresh()
+						return
+					end
+
 					if m.api.IsShiftKeyDown() then
 						local event_data = m.db.events[ frame.event_key ]
 						if event_data then
@@ -408,16 +463,27 @@ function M.new()
 						return
 					end
 
+					local event_data = m.db.events[ frame.event_key ]
 					selected_event_key = frame.event_key
-					selected_day = normalize_day( event.startTime )
-					m.event_popup.show( frame.event_key )
+					if event_data and event_data.startTime then
+						selected_day = normalize_day( event_data.startTime )
+					end
+					if m.event_popup then
+						m.event_popup.show( frame.event_key )
+					end
 					popup.refresh()
 				end )
 
 				table.insert( detail_items, frame )
 			end
 
-			local color = get_color_components( event and event.color or nil )
+			local color
+			if is_local then
+				color = { r=0.6, g=0.4, b=1, a=1 }
+			else
+				local _c = m.get_event_color( event )
+				color = { r=_c[1], g=_c[2], b=_c[3], a=1 }
+			end
 
 			frame.border:SetVertexColor( color.r, color.g, color.b, color.a )
 			frame:ClearAllPoints()
@@ -431,21 +497,24 @@ function M.new()
 			frame.time:SetText( date( "%d/%m ", event.startTime ) .. date( m.time_format, event.startTime ) )
 			frame.title:SetText( event.title )
 
-			local signup_text = m.L( "ui.no_signup_data" )
-			if event.signUps then
-				local count = 0
-				for _, signup in ipairs( event.signUps ) do
-					if signup.className ~= "Absence" then
-						count = count + 1
+			local signup_text = ""
+			if not is_local then
+				if event.signUps then
+					local count = 0
+					for _, signup in ipairs( event.signUps ) do
+						if signup.className ~= "Absence" then count = count + 1 end
 					end
+					signup_text = m.L( "ui.signups", { count = count } )
+				elseif event.signUpCount then
+					signup_text = m.L( "ui.signups", { count = event.signUpCount } )
+				else
+					signup_text = m.L( "ui.no_signup_data" )
 				end
-				signup_text = m.L( "ui.signups", { count = count } )
-			elseif event.signUpCount then
-				signup_text = m.L( "ui.signups", { count = event.signUpCount } )
 			end
 
 			frame.meta:SetText( signup_text )
-			frame.event_key = item.key
+			frame.event_key  = item.key
+			frame.event_source = item.source
 
 			if selected_event_key and selected_event_key == item.key then
 				frame.selected:Show()
@@ -466,7 +535,7 @@ function M.new()
 
 		for i = 1, getn( day_cells ) do
 			local cell = day_cells[ i ]
-			local day_time = grid_start + ((i - 1) * 86400)
+			local day_time = add_days_safe( grid_start, i - 1 )
 			local day_info = date( "*t", day_time )
 			local day_events = events_by_day[ tostring( day_time ) ] or {}
 			local is_current_month = day_info.month == month_info.month and day_info.year == month_info.year
@@ -492,7 +561,7 @@ function M.new()
 			set_shown( cell.today_glow, is_today )
 			set_shown( cell.selected_overlay, is_selected )
 
-			cell.event_count:SetText( getn( day_events ) > 0 and tostring( getn( day_events ) ) or "" )
+			cell.event_count:SetText( "" )
 
 			for j = 1, max_cell_events do
 				cell.events[ j ]:Hide()
@@ -501,20 +570,35 @@ function M.new()
 
 			for j = 1, math.min( getn( day_events ), max_cell_events ) do
 				local item = day_events[ j ]
-				local event = m.db.events[ item.key ]
+				local is_local = (item.source == "local")
+				local event_data
+				if is_local then
+					event_data = m.db.local_events and m.db.local_events[ item.key ]
+				else
+					event_data = m.db.events[ item.key ]
+				end
 				local chip = cell.events[ j ]
-				local color = get_color_components( event and event.color or nil )
-				local title = event and event.title or ""
-				local label = date( m.time_format, event.startTime ) .. " " .. title
-
-				chip.event_key = item.key
-				chip.color_bar:SetVertexColor( color.r, color.g, color.b, color.a )
-				chip.text:SetText( label )
-				chip:Show()
+				if event_data then
+					local color
+					-- Couleur violette pour les events locaux, sinon cache RGB de l'event
+					if is_local then
+						color = { r=0.6, g=0.4, b=1, a=1 }
+					else
+						local _c = m.get_event_color( event_data )
+						color = { r=_c[1], g=_c[2], b=_c[3], a=1 }
+					end
+					local title = truncate_cell_label( event_data.title or "", 11 )
+					local label = date( m.time_format, event_data.startTime ) .. " " .. title
+					chip.event_key   = item.key
+					chip.event_source = item.source
+					chip.color_bar:SetVertexColor( color.r, color.g, color.b, color.a )
+					chip.text:SetText( label )
+					chip:Show()
+				end
 			end
 
 			if getn( day_events ) > max_cell_events then
-				cell.more_label:SetText( m.L( "ui.more", { count = getn( day_events ) - max_cell_events } ) )
+				cell.more_label:SetText( "+" .. tostring( getn( day_events ) - max_cell_events ) )
 				cell.more_label:Show()
 			end
 		end
@@ -542,13 +626,14 @@ function M.new()
 			end
 		end
 
-		popup.settings.use_char_name:SetChecked( m.db.user_settings.use_character_name )
 		popup.settings.time_format:SetSelected( (popup.settings:IsVisible() and pending_time_format) or m.db.user_settings.time_format )
 		popup.settings.locale_flag:SetSelected( (popup.settings:IsVisible() and pending_locale_flag) or (m.db.user_settings.locale_flag or "enUS") )
 
-		center_checkbox_with_text( popup.settings, popup.settings.use_char_name, -15 )
 
 		refresh_data()
+		if getn( m.db.local_events or {} ) == 0 then
+			request_local_events_once( false )
+		end
 		ensure_selected_day()
 		refresh_day_cells()
 		update_day_detail_items()
@@ -558,7 +643,7 @@ function M.new()
 	local function create_chip( parent, width )
 		local chip = CreateFrame( "Button", nil, parent )
 		chip:SetWidth( width )
-		chip:SetHeight( 14 )
+		chip:SetHeight( 10 )
 		chip:SetHighlightTexture( "Interface\\QuestFrame\\UI-QuestTitleHighlight" )
 
 		chip.bg = chip:CreateTexture( nil, "BACKGROUND" )
@@ -570,16 +655,29 @@ function M.new()
 		chip.color_bar:SetTexture( "Interface\\Buttons\\WHITE8x8" )
 		chip.color_bar:SetPoint( "TopLeft", chip, "TopLeft", 0, 0 )
 		chip.color_bar:SetPoint( "BottomLeft", chip, "BottomLeft", 0, 0 )
-		chip.color_bar:SetWidth( 3 )
+		chip.color_bar:SetWidth( 2 )
 
 		chip.text = chip:CreateFontString( nil, "ARTWORK", "RCFontNormalSmall" )
-		chip.text:SetPoint( "TopLeft", chip, "TopLeft", 5, -1 )
-		chip.text:SetPoint( "Right", chip, "Right", -2, 0 )
+		chip.text:SetPoint( "TopLeft", chip, "TopLeft", 4, -1 )
+		chip.text:SetPoint( "Right", chip, "Right", -1, 0 )
 		chip.text:SetJustifyH( "Left" )
 		chip.text:SetTextColor( 0.95, 0.95, 0.95 )
 
 		chip:SetScript( "OnClick", function()
 			if not chip.event_key then
+				return
+			end
+
+			if chip.event_source == "local" then
+				local local_event = m.db.local_events and m.db.local_events[ chip.event_key ]
+				selected_event_key = chip.event_key
+				if local_event and local_event.startTime then
+					selected_day = normalize_day( local_event.startTime )
+				end
+				if m.LocalEventPopup then
+					m.LocalEventPopup.show( chip.event_key )
+				end
+				popup.refresh()
 				return
 			end
 
@@ -592,8 +690,14 @@ function M.new()
 				return
 			end
 
+			local event_data = m.db.events[ chip.event_key ]
 			selected_event_key = chip.event_key
-			m.event_popup.show( chip.event_key )
+			if event_data and event_data.startTime then
+				selected_day = normalize_day( event_data.startTime )
+			end
+			if m.event_popup then
+				m.event_popup.show( chip.event_key )
+			end
 			popup.refresh()
 		end )
 
@@ -662,13 +766,13 @@ function M.new()
 		cell.events = {}
 		for i = 1, max_cell_events do
 			local chip = create_chip( cell, width - 8 )
-			chip:SetPoint( "TopLeft", cell, "TopLeft", 4, -18 - ((i - 1) * 15) )
+			chip:SetPoint( "TopLeft", cell, "TopLeft", 4, -22 - ((i - 1) * 11) )
 			table.insert( cell.events, chip )
 		end
 
 		cell.more_label = cell:CreateFontString( nil, "ARTWORK", "RCFontNormalSmall" )
-		cell.more_label:SetPoint( "BottomLeft", cell, "BottomLeft", 5, 4 )
-		cell.more_label:SetJustifyH( "Left" )
+		cell.more_label:SetPoint( "TopRight", cell, "TopRight", -5, -18 )
+		cell.more_label:SetJustifyH( "Right" )
 		cell.more_label:SetTextColor( 0.7, 0.7, 0.75 )
 		cell.more_label:Hide()
 
@@ -706,11 +810,12 @@ function M.new()
 			frame:SetPoint( p.point, UIParent, p.relative_point, p.x, p.y )
 		end
 
+		-- Bouton Refresh
 		frame.btn_refresh = m.GuiElements.tiny_button( frame, "R", m.L( "ui.refresh" ), "#20F99F" )
 		frame.btn_refresh:SetPoint( "Right", frame.titlebar.btn_close, "Left", 2, 0 )
 		frame.btn_refresh:SetScript( "OnClick", function()
 			frame.btn_refresh:Disable()
-			m.msg.request_events()
+			m.msg.request_events( true )
 			if not m.debug_enabled then
 				m.ace_timer.ScheduleTimer( M, function()
 					frame.btn_refresh:Enable()
@@ -718,6 +823,7 @@ function M.new()
 			end
 		end )
 
+		-- Bouton Settings
 		frame.btn_settings = m.GuiElements.tiny_button( frame, "S", m.L( "ui.settings" ), "#F3DF2B" )
 		frame.btn_settings:SetPoint( "Right", frame.btn_refresh, "Left", 2, 0 )
 		frame.btn_settings:SetScript( "OnClick", function()
@@ -738,7 +844,6 @@ function M.new()
 					frame.settings.refresh_discord_ui()
 				end
 				refresh_settings_labels()
-				center_checkbox_with_text( frame.settings, frame.settings.use_char_name, -15 )
 				frame.settings:Show()
 				if m.pfui_skin_enabled then
 					frame.btn_settings:SetBackdropBorderColor( 0.95, 0.87, 0.17, 1 )
@@ -746,7 +851,17 @@ function M.new()
 			end
 		end )
 
-		frame.online_indicator = gui.create_online_indicator( frame, frame.btn_settings )
+		-- Bouton Nouvel evenement
+		frame.btn_new_event = m.GuiElements.tiny_button( frame, "+", m.L( "ui.new_event" ), "#00FFFF" )
+		frame.btn_new_event:SetPoint( "Right", frame.btn_settings, "Left", -2, 0 )
+		frame.btn_new_event:SetScript( "OnClick", function()
+			if m.EventManagePopup then
+				m.EventManagePopup.show_create()
+			end
+		end )
+
+		-- LED bot indicator
+		frame.online_indicator = gui.create_online_indicator( frame, frame.btn_new_event )
 
 		frame.calendar_panel = m.FrameBuilder.new()
 			:parent( frame )
@@ -768,7 +883,10 @@ function M.new()
 			:backdrop_color( 0.03, 0.03, 0.04, 1 )
 			:build()
 
-		frame.btn_prev_month = gui.create_button( frame.calendar_panel, "<", 24, function()
+		frame.btn_prev_month = gui.tiny_button( frame.calendar_panel, "<", nil, "#c8a84b", 14 )
+		frame.btn_prev_month:SetWidth( 24 )
+		frame.btn_prev_month:SetHeight( 18 )
+		frame.btn_prev_month:SetScript( "OnClick", function()
 			current_month_time = shift_month( current_month_time or get_today(), -1 )
 			selected_day = normalize_day( current_month_time )
 			selected_event_key = nil
@@ -776,7 +894,10 @@ function M.new()
 		end )
 		frame.btn_prev_month:SetPoint( "TopLeft", frame.calendar_panel, "TopLeft", 12, -12 )
 
-		frame.btn_next_month = gui.create_button( frame.calendar_panel, ">", 24, function()
+		frame.btn_next_month = gui.tiny_button( frame.calendar_panel, ">", nil, "#c8a84b", 14 )
+		frame.btn_next_month:SetWidth( 24 )
+		frame.btn_next_month:SetHeight( 18 )
+		frame.btn_next_month:SetScript( "OnClick", function()
 			current_month_time = shift_month( current_month_time or get_today(), 1 )
 			selected_day = normalize_day( current_month_time )
 			selected_event_key = nil
@@ -784,7 +905,11 @@ function M.new()
 		end )
 		frame.btn_next_month:SetPoint( "TopRight", frame.calendar_panel, "TopRight", -12, -12 )
 
-		frame.btn_today = gui.create_button( frame.calendar_panel, m.L( "actions.today" ) or "Today", 58, function()
+		frame.btn_today = gui.tiny_button( frame.calendar_panel,
+			m.L( "actions.today" ) or "Today", nil, "#c8a84b", 11 )
+		frame.btn_today:SetWidth( 80 )
+		frame.btn_today:SetHeight( 18 )
+		frame.btn_today:SetScript( "OnClick", function()
 			selected_day = get_today()
 			selected_event_key = nil
 			current_month_time = selected_day
@@ -869,7 +994,7 @@ function M.new()
 			:hidden()
 			:build()
 
-		local btn_welcome = gui.create_button( frame.settings, m.L( "actions.welcome_popup" ) or "Welcome popup", 130, function()
+		local btn_welcome = gui.create_button( frame.settings, m.L( "actions.welcome_popup" ) or m.L( "ui.welcome_popup" ) or "Welcome popup", 130, function()
 			m.welcome_popup.show()
 			popup:Hide()
 		end )
@@ -884,33 +1009,28 @@ function M.new()
 				frame.settings.refresh_discord_ui()
 			end
 		end )
-		btn_disconnect_pf:SetPoint( "TopRight", btn_welcome, "TopRight", 0, -30 )
+		-- Meme position que btn_welcome : exclusion mutuelle
+		btn_disconnect_pf:SetPoint( "TopRight", frame.settings, "TopRight", -10, -15 )
 		btn_disconnect_pf:Hide()
 		frame.settings.btn_disconnect = btn_disconnect_pf
 
 		local btn_save = gui.create_button( frame.settings, m.L( "actions.save" ) or "Save", 110, on_save_settings )
-		btn_save:SetPoint( "TopRight", btn_disconnect_pf, "TopRight", 0, -30 )
+		-- Ancre sur btn_welcome (position fixe)
+		btn_save:SetPoint( "TopRight", btn_welcome, "TopRight", 0, -30 )
 		frame.settings.btn_save = btn_save
 
 		local function refresh_discord_ui_pf()
 			if m.db.user_settings.discord_id and m.db.user_settings.discord_id ~= "" then
-				if btn_disconnect_pf then
-					btn_disconnect_pf:Show()
-				end
+				btn_welcome:Hide()
+				if btn_disconnect_pf then btn_disconnect_pf:Show() end
 			else
-				if btn_disconnect_pf then
-					btn_disconnect_pf:Hide()
-				end
+				btn_welcome:Show()
+				if btn_disconnect_pf then btn_disconnect_pf:Hide() end
 			end
 		end
 		frame.settings.refresh_discord_ui = refresh_discord_ui_pf
 
-		local cb = CreateFrame( "CheckButton", "RaidCalendarPopupCheckboxPfui", frame.settings, "UICheckButtonTemplate" )
-		cb:SetWidth( 22 )
-		cb:SetHeight( 22 )
-		getglobal( cb:GetName() .. "Text" ):SetText( m.L( "ui.use_character_name" ) )
-		frame.settings.use_char_name = cb
-		center_checkbox_with_text( frame.settings, cb, -15 )
+		-- (case use_character_name supprimee, valeur forcee a 1 dans RaidCalendar.lua)
 
 		local settings_label_x = 10
 		local settings_first_row_y = -20
@@ -956,7 +1076,7 @@ function M.new()
 		dd_locale:SetPoint( "TopLeft", frame.settings, "TopLeft", settings_dropdown_x, settings_first_row_y - settings_row_spacing + 2 )
 		dd_locale:SetItems( {
 			{ value = "enUS", text = m.locale_native_name and m.locale_native_name( "enUS" ) or "English" },
-			{ value = "frFR", text = m.locale_native_name and m.locale_native_name( "frFR" ) or "Français" }
+			{ value = "frFR", text = m.locale_native_name and m.locale_native_name( "frFR" ) or "Francais" }
 		}, function( value )
 			pending_locale_flag = value
 		end )
@@ -1015,6 +1135,10 @@ function M.new()
 		frame.refresh = refresh_calendar
 		gui.pfui_skin( frame )
 
+		frame:SetScript( "OnHide", function()
+			if m.close_all_popups then m.close_all_popups() end
+		end )
+
 		return frame
 	end
 
@@ -1032,11 +1156,12 @@ function M.new()
 		popup.refresh()
 
 		if m.msg then
-			m.msg.request_events()
+			m.msg.request_events( true )
 		end
 	end
 
 	local function hide()
+		if m.close_all_popups then m.close_all_popups() end
 		if popup then
 			popup:Hide()
 		end
@@ -1081,6 +1206,9 @@ function M.new()
 
 	local function update()
 		if popup and popup:IsVisible() then
+			if getn( m.db.local_events or {} ) > 0 then
+				local_events_requested = false
+			end
 			refresh_data( true )
 			popup.refresh()
 		end
@@ -1089,9 +1217,6 @@ function M.new()
 	local function sync_settings()
 		if not popup then
 			return
-		end
-		if popup.settings and popup.settings.use_char_name then
-			popup.settings.use_char_name:SetChecked( m.db.user_settings.use_character_name )
 		end
 		if popup.settings and popup.settings.time_format then
 			popup.settings.time_format:SetSelected( (popup.settings:IsVisible() and pending_time_format) or m.db.user_settings.time_format )
@@ -1103,8 +1228,6 @@ function M.new()
 		if popup.settings and popup.settings.dd_theme then
 			popup.settings.dd_theme:SetSelected( pending_ui_theme )
 		end
-
-		center_checkbox_with_text( popup.settings, popup.settings.use_char_name, -15 )
 	end
 
 	---@type CalendarPopup

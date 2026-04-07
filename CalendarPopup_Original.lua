@@ -29,7 +29,6 @@ function M.new()
 	local rows = 5
 	local gui = m.GuiElements
 	local pending_ui_theme
-	local position_settings_checkbox
 
 	local function save_position( self )
 		local point, _, relative_point, x, y = self:GetPoint()
@@ -67,7 +66,6 @@ function M.new()
 		if not popup or not popup.settings then return end
 		local l = m.L
 		if not l then return end
-		getglobal( popup.settings.use_char_name:GetName() .. "Text" ):SetText( l( "ui.use_character_name" ) )
 		popup.settings.label_timeformat:SetText( l( "ui.time_format" ) )
 		popup.settings.label_locale:SetText( l( "ui.language" ) )
 		popup.settings.time_format:SetItems( {
@@ -76,7 +74,7 @@ function M.new()
 		} )
 		popup.settings.locale_flag:SetItems( {
 			{ value = "enUS", text = m.locale_native_name and m.locale_native_name( "enUS" ) or "English" },
-			{ value = "frFR", text = m.locale_native_name and m.locale_native_name( "frFR" ) or "Français" }
+			{ value = "frFR", text = m.locale_native_name and m.locale_native_name( "frFR" ) or "Francais" }
 		} )
 		popup.settings.btn_save:SetText( l( "actions.save" ) )
 		popup.settings.btn_welcome:SetText( l( "actions.welcome_popup" ) )
@@ -84,14 +82,14 @@ function M.new()
 		if popup.settings.lbl_theme then popup.settings.lbl_theme:SetText( l( "ui.ui_theme" ) ) end
 		popup.btn_refresh.tooltip = l( "ui.refresh" )
 		popup.btn_settings.tooltip = l( "ui.settings" )
-		position_settings_checkbox()
 	end
 
 	local function on_save_settings()
 		local selected_theme = ( popup.settings and popup.settings.pending_ui_theme ) or pending_ui_theme or ( popup.settings.dd_theme and popup.settings.dd_theme.selected ) or m.db.user_settings.ui_theme or "Original"
 		local theme_changed = selected_theme ~= ( m.db.user_settings.ui_theme or "Original" )
 
-		m.db.user_settings.use_character_name = popup.settings.use_char_name:GetChecked()
+		-- use_character_name est force a 1 (case a cocher supprimee)
+		m.db.user_settings.use_character_name = 1
 		m.db.user_settings.time_format = popup.settings.time_format.selected
 		m.time_format = m.db.user_settings.time_format == "24" and "%H:%M" or "%I:%M %p"
 		local locale_changed = popup.settings.locale_flag and
@@ -139,14 +137,7 @@ function M.new()
 		if m.sr_popup and m.sr_popup.update then m.sr_popup.update() end
 	end
 
-	position_settings_checkbox = function()
-		if not popup or not popup.settings or not popup.settings.use_char_name then
-			return
-		end
-
-		center_checkbox_with_text( popup.settings, popup.settings.use_char_name, -130 )
-	end
-
+	-- position_settings_checkbox supprimee (case a cocher supprimee, use_character_name force a 1)
 	---@param parent Frame
 	---@return Frame
 	local function create_item( parent )
@@ -173,10 +164,27 @@ function M.new()
         separator:SetVertexColor(0.3, 0.3, 0.3, 0.6)
 
 		frame:SetScript( "OnClick", function()
+			if not events or not frame.index then return end
+			local item = events[ frame.index ]
+			if not item then return end
+			-- Event local : ouvrir LocalEventPopup
+			if item.source == "local" then
+				if selected == frame.index then
+					selected = nil
+					if m.LocalEventPopup then m.LocalEventPopup.hide() end
+				else
+					selected = frame.index
+					if m.LocalEventPopup then m.LocalEventPopup.show( item.key ) end
+				end
+				refresh()
+				return
+			end
 			if m.api.IsShiftKeyDown() then
-				local event = m.db.events[ events[ frame.index ].key ]
-				local raid_link = "|cffffffff|Hraidcal:event:" .. events[ frame.index ].key .. "|h[" .. event.title .. "]|h|r"
-				m.api.ChatFrameEditBox:Insert( raid_link )
+				local event_data = m.db.events[ item.key ]
+				if event_data then
+					local raid_link = "|cffffffff|Hraidcal:event:" .. item.key .. "|h[" .. event_data.title .. "]|h|r"
+					m.api.ChatFrameEditBox:Insert( raid_link )
+				end
 				return
 			end
 			if selected == frame.index then
@@ -184,7 +192,7 @@ function M.new()
 				m.event_popup.hide()
 			else
 				selected = frame.index
-				m.event_popup.show( events[ selected ].key )
+				m.event_popup.show( item.key )
 			end
 
 			refresh()
@@ -259,17 +267,25 @@ function M.new()
 
 		frame.set_item = function( index )
 			frame.index = index
-			local event = m.db.events[ events[ index ].key ]
+			local item = events[ index ]
+			local is_local = (item.source == "local")
+			local event
+			if is_local then
+				event = m.db.local_events and m.db.local_events[ item.key ]
+			else
+				event = m.db.events[ item.key ]
+			end
+			if not event then return end
 
-			local color = {}
-			for c in string.gmatch( event.color, "%s*([^,]+)%s*" ) do
-				table.insert( color, c )
+			if is_local then
+				-- Couleur violette pour les events locaux
+				color_bar:SetVertexColor( 0.6, 0.4, 1, 1 )
+			else
+				local rgb = m.get_event_color( event )
+				color_bar:SetVertexColor( rgb[1], rgb[2], rgb[3], 1 )
 			end
 
-			color[ 4 ] = getn( color ) == 3 and 1 or 0
-			color_bar:SetVertexColor( (tonumber( color[ 1 ] ) or 0) / 255, (tonumber( color[ 2 ] ) or 0) / 255, (tonumber( color[ 3 ] ) or 0) / 255, color[ 4 ] )
-
-			title:SetText( event.title )
+			title:SetText( event.title or "" )
 			date_label.set( date( "%d. %b %Y", event.startTime ) )
 			time_label.set( date( m.time_format, event.startTime ) )
 
@@ -281,7 +297,7 @@ function M.new()
 				time_offset.icon:SetVertexColor( 1, 1, 1, 1 )
 			end
 
-			if event.srId then
+			if not is_local and event.srId then
 				sr_frame:Show()
 				if event.sr and event.sr.reservations then
 					local cnt = 0
@@ -301,9 +317,10 @@ function M.new()
 			else
 				sr_frame:Hide()
 			end
+			if is_local then sr_frame:Hide() end
 
 			local signed_up = false
-			if event.signUps then
+			if not is_local and event.signUps then
 				local signups = 0
 				for _, v in ipairs( event.signUps ) do
 					if v.className ~= "Absence" then
@@ -313,9 +330,9 @@ function M.new()
 						signed_up = true
 					end
 				end
-				signups_label.set( m.L and m.L( "ui.signups", { count = signups } ) or (tostring( signups ) .. " signups") )
+				signups_label.set( m.L and m.L( "ui.signups", { count = signups } ) or (tostring( signups ) .. " " .. (m.L( "ui.signups_short" ) or "signups")) )
 			elseif event.signUpCount then
-				signups_label.set( m.L and m.L( "ui.signups", { count = event.signUpCount } ) or (event.signUpCount .. " signups") )
+				signups_label.set( m.L and m.L( "ui.signups", { count = event.signUpCount } ) or (event.signUpCount .. " " .. (m.L( "ui.signups_short" ) or "signups")) )
 			end
 
 			if signed_up then
@@ -327,6 +344,14 @@ function M.new()
 			frame:Show()
 		end
 
+				-- Bouton Nouvel evenement
+		frame.btn_new_event = m.GuiElements.tiny_button( frame, "+", m.L and m.L( "ui.new_event" ) or "Nouvel evenement", "#2e7d32" )
+		frame.btn_new_event:SetPoint( "TopRight", frame, "TopRight", -34, -4 )
+		frame.btn_new_event:SetScript( "OnClick", function()
+			if m.EventManagePopup then
+				m.EventManagePopup.show_create()
+			end
+		end )
 		return frame
 	end
 
@@ -360,7 +385,7 @@ function M.new()
 		frame.btn_refresh:SetPoint( "Right", frame.titlebar.btn_close, "Left", 2, 0 )
 		frame.btn_refresh:SetScript( "OnClick", function()
 			frame.btn_refresh:Disable()
-			m.msg.request_events()
+			m.msg.request_events( true )
 			if not m.debug_enabled then
 				m.ace_timer.ScheduleTimer( M, function()
 					frame.btn_refresh:Enable()
@@ -375,7 +400,6 @@ function M.new()
 				frame.settings:Hide()
 				frame:SetHeight( 250 )
 			else
-				frame.settings.use_char_name:SetChecked( m.db.user_settings.use_character_name )
 				frame.settings.time_format:SetSelected( m.db.user_settings.time_format )
 				if frame.settings.locale_flag then
 					frame.settings.locale_flag:SetSelected( m.db.user_settings.locale_flag or "enUS" )
@@ -462,20 +486,12 @@ function M.new()
 		-- Row 5: UI Theme           [dd_theme]      <- injected by ThemeSelector
 		-- Buttons: Save / Welcome popup / Disconnect (right col, bottom up)
 
-		-- Row 1: checkbox
-		local cb = CreateFrame( "CheckButton", "RaidCalendarPopupCheckboxOriginal", frame.settings, "UICheckButtonTemplate" )
-		cb:SetWidth( 22 )
-		cb:SetHeight( 22 )
-		local cbtext = getglobal( cb:GetName() .. "Text" )
-		cbtext:SetText( m.L( "ui.use_character_name" ) )
-		cbtext:SetTextColor( 1, 0.82, 0, 1 )
-		frame.settings.use_char_name = cb
-		center_checkbox_with_text( frame.settings, cb, -130 )
+		-- (case use_character_name supprimee, valeur forcee a 1 dans RaidCalendar.lua)
 
 		-- Row 2: Discord
 		local discord_label = frame.settings:CreateFontString( nil, "ARTWORK", "RCFontNormal" )
 		discord_label:SetPoint( "TopLeft", frame.settings, "TopLeft", 8, -34 )
-		discord_label:SetText( m.L and m.L( "ui.discord_name_id" ) or "Discord:" )
+		discord_label:SetText( m.L and m.L( "ui.discord_name_id" ) or m.L( "ui.discord" ) or "Discord:" )
 		frame.settings.discord_label = discord_label
 
 		local discord_box = CreateFrame( "EditBox", nil, frame.settings )
@@ -510,12 +526,13 @@ function M.new()
 				discord_box:Hide(); btn_lookup_orig:Hide(); discord_label:Hide()
 				discord_response_orig:SetText( "" )
 				if btn_disconnect_orig then btn_disconnect_orig:Show() end
+				if frame.settings.btn_welcome then frame.settings.btn_welcome:Hide() end
 			else
 				discord_box:Show(); btn_lookup_orig:Show(); btn_lookup_orig:Enable(); discord_label:Show()
 				discord_box:SetText( "" )
 				if btn_disconnect_orig then btn_disconnect_orig:Hide() end
+				if frame.settings.btn_welcome then frame.settings.btn_welcome:Show() end
 			end
-			position_settings_checkbox()
 		end
 		frame.settings.refresh_discord_ui = refresh_discord_ui_orig
 
@@ -531,7 +548,7 @@ function M.new()
 				for _, region in ipairs( regions ) do
 					if region and region.GetObjectType and region:GetObjectType() == "FontString" then
 						local txt = region.GetText and region:GetText() or nil
-						if txt == "UI Theme" then
+						if txt == m.L( "ui.ui_theme" ) or "UI Theme" then
 							theme_label = region
 							settings.label_theme = region
 							break
@@ -555,7 +572,7 @@ function M.new()
 		-- Row 3: Format de l'heure
 		local label_timeformat = frame.settings:CreateFontString( nil, "ARTWORK", "RCFontNormal" )
 		label_timeformat:SetPoint( "TopLeft", frame.settings, "TopLeft", 10, -20 )
-		label_timeformat:SetText( m.L and m.L( "ui.time_format" ) or "Time format" )
+		label_timeformat:SetText( m.L and m.L( "ui.time_format" ) or m.L( "ui.time_format" ) or "Time format" )
 		frame.settings.label_timeformat = label_timeformat
 
 		local dd_timeformat = scroll_drop:New( frame.settings, {
@@ -586,7 +603,7 @@ function M.new()
 		dd_locale:SetPoint( "TopLeft", frame.settings, "TopLeft", 121, -50 )
 		dd_locale:SetItems( {
 			{ value = "enUS", text = m.locale_native_name and m.locale_native_name( "enUS" ) or "English" },
-			{ value = "frFR", text = m.locale_native_name and m.locale_native_name( "frFR" ) or "Français" }
+			{ value = "frFR", text = m.locale_native_name and m.locale_native_name( "frFR" ) or "Francais" }
 		} )
 		frame.settings.locale_flag = dd_locale
 
@@ -597,7 +614,7 @@ function M.new()
 		btn_welcome:SetPoint( "TopRight", frame.settings, "TopRight", -10, -20 )
 		frame.settings.btn_welcome = btn_welcome
 
-		-- Disconnect (shown when discord_id is set)
+		-- Disconnect (meme position que btn_welcome, exclusion mutuelle)
 		btn_disconnect_orig = gui.create_button( frame.settings,
 			m.L and m.L( "actions.disconnect" ) or "Disconnect", 110,
 			function()
@@ -607,21 +624,26 @@ function M.new()
 				btn_lookup_orig:Enable()
 				refresh_discord_ui_orig()
 			end )
-		btn_disconnect_orig:SetPoint( "TopRight", btn_welcome, "TopRight", 0, -30 )
+		btn_disconnect_orig:SetPoint( "TopRight", frame.settings, "TopRight", -10, -20 )
 		btn_disconnect_orig:Hide()
 		frame.settings.btn_disconnect = btn_disconnect_orig
 
-		-- Boutons en haut à droite, empilés vers le bas
+		-- Boutons en haut a droite, empiles vers le bas
 		local btn_save = gui.create_button( frame.settings, m.L and m.L( "actions.save" ) or "Save", 110, on_save_settings )
-		btn_save:SetPoint( "TopRight", btn_disconnect_orig, "TopRight", 0, -30 )
+		btn_save:SetPoint( "TopRight", btn_welcome, "TopRight", 0, -30 )
 		frame.settings.btn_save = btn_save
 
-		-- UI Theme: même ligne que Format de l'heure et Langue (colonne gauche)
+		-- UI Theme: meme ligne que Format de l'heure et Langue (colonne gauche)
 		if m.ThemeSelector then
 			m.ThemeSelector.inject( frame.settings, dd_locale )
 		end
 		align_theme_selector_row()
 		gui.pfui_skin( frame )
+
+		frame:SetScript( "OnHide", function()
+			if m.close_all_popups then m.close_all_popups() end
+		end )
+
 		return frame
 	end
 
@@ -630,7 +652,6 @@ function M.new()
 		popup.online_indicator.update()
 		if m.debug_enabled then popup.btn_refresh:Enable() end
 
-		popup.settings.use_char_name:SetChecked( m.db.user_settings.use_character_name )
 		popup.settings.time_format:SetSelected( m.db.user_settings.time_format )
 		if popup.settings.locale_flag then
 			popup.settings.locale_flag:SetSelected( m.db.user_settings.locale_flag or "enUS" )
@@ -639,7 +660,11 @@ function M.new()
 		if not events or refresh_data then
 			events = {}
 			for k, v in pairs( m.db.events ) do
-				table.insert( events, { key = k, value = v.startTime } )
+				table.insert( events, { key = k, value = v.startTime, source = "raidhelper" } )
+			end
+			-- Inclure les evenements locaux
+			for k, v in pairs( m.db.local_events or {} ) do
+				table.insert( events, { key = k, value = v.startTime, source = "local" } )
 			end
 
 			table.sort( events, function( a, b )
@@ -650,7 +675,6 @@ function M.new()
 			popup.scroll_bar:SetMinMaxValues( 0, max )
 
 			if getn( events ) == 0 then
-				m.info( m.L and m.L( "ui.loading_events" ) or "Loading events, hang on..." )
 				m.msg.request_events()
 			end
 		end
@@ -692,6 +716,7 @@ function M.new()
 	end
 
 	local function hide()
+		if m.close_all_popups then m.close_all_popups() end
 		if popup then
 			popup:Hide()
 		end
@@ -737,9 +762,6 @@ function M.new()
 
 	local function sync_settings()
 		if not popup then return end
-		if popup.settings.use_char_name then
-			popup.settings.use_char_name:SetChecked( m.db.user_settings.use_character_name )
-		end
 		if popup.settings.time_format then
 			popup.settings.time_format:SetSelected( m.db.user_settings.time_format )
 		end
@@ -759,7 +781,7 @@ function M.new()
 				for _, region in ipairs( regions ) do
 					if region and region.GetObjectType and region:GetObjectType() == "FontString" then
 						local txt = region.GetText and region:GetText() or nil
-						if txt == "UI Theme" then
+						if txt == m.L( "ui.ui_theme" ) or "UI Theme" then
 							theme_label = region
 							settings.label_theme = region
 							break
@@ -777,7 +799,6 @@ function M.new()
 				settings.dd_theme:SetPoint( "TopLeft", settings, "TopLeft", 121, -82 )
 			end
 		end
-		position_settings_checkbox()
 	end
 
 	---@type CalendarPopup

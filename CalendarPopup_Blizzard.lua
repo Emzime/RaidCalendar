@@ -59,6 +59,7 @@ function M.new()
 	local events = nil
 	local events_by_day = {}
 	local detail_items = {}
+	local local_events_requested = false
 	local gui = m.GuiElements
 
 	local function normalize_day( ts )
@@ -71,6 +72,16 @@ function M.new()
 
 	local function get_today()
 		return normalize_day( time( date( "*t" ) ) )
+	end
+
+	local function truncate_cell_label( text, max_len )
+		if not text then
+			return ""
+		end
+		if string.len( text ) <= max_len then
+			return text
+		end
+		return string.sub( text, 1, max_len - 3 ) .. "..."
 	end
 
 	local function get_grid_base_frame_level()
@@ -160,7 +171,10 @@ function M.new()
 			return
 		end
 		for _, item in ipairs( events ) do
-			local event = m.db.events[ item.key ]
+			-- Chercher l'event dans raidhelper ou local selon source
+			local event = item.source == "local"
+				and ( m.db.local_events and m.db.local_events[ item.key ] )
+				or  m.db.events[ item.key ]
 			if event and event.startTime then
 				local dk = tostring( normalize_day( event.startTime ) )
 				events_by_day[ dk ] = events_by_day[ dk ] or {}
@@ -173,7 +187,11 @@ function M.new()
 		if not events or force then
 			events = {}
 			for key, value in pairs( m.db.events ) do
-				table.insert( events, { key = key, value = value.startTime } )
+				table.insert( events, { key = key, value = value.startTime, source = "raidhelper" } )
+			end
+			-- Inclure les evenements locaux (in-game)
+			for key, value in pairs( m.db.local_events or {} ) do
+				table.insert( events, { key = key, value = value.startTime, source = "local" } )
 			end
 			table.sort( events, function( a, b )
 				return a.value < b.value
@@ -182,6 +200,19 @@ function M.new()
 			if table.getn( events ) == 0 then
 				m.msg.request_events()
 			end
+		end
+	end
+
+	local function request_local_events_once( force )
+		if not m.msg or not m.msg.request_local_events then
+			return
+		end
+		if force then
+			local_events_requested = false
+		end
+		if not local_events_requested then
+			local_events_requested = true
+			m.msg.request_local_events()
 		end
 	end
 
@@ -211,7 +242,7 @@ function M.new()
 			cell = CreateFrame( "Frame", nil, popup )
 			cell:SetWidth( CELL_SIZE )
 			cell:SetHeight( CELL_SIZE )
-			cell:EnableMouse( true )
+				cell:EnableMouse( true )
 			if popup and popup.GetFrameStrata then
 				cell:SetFrameStrata( popup:GetFrameStrata() )
 			end
@@ -301,7 +332,7 @@ function M.new()
 			local cell = used_cells[ i ]
 			cell:Hide()
 			if cell.chips then
-				for _, ch in pairs( cell.chips ) do
+				for _, ch in ipairs( cell.chips ) do
 					ch:Hide()
 				end
 			end
@@ -321,7 +352,12 @@ function M.new()
 		end
 
 		for _, item in ipairs( events ) do
-			local ev = m.db.events[ item.key ]
+			local ev
+			if item.source == "local" then
+				ev = m.db.local_events and m.db.local_events[ item.key ]
+			else
+				ev = m.db.events[ item.key ]
+			end
 			if ev and ev.startTime then
 				local info = date( "*t", ev.startTime )
 				if info.year == current_year and info.month == current_month then
@@ -367,7 +403,13 @@ function M.new()
 
 		local tf = m.time_format or "%H:%M"
 		for i, item in ipairs( month_evts ) do
-			local ev = m.db.events[ item.key ]
+			local is_local = (item.source == "local")
+			local ev
+			if is_local then
+				ev = m.db.local_events and m.db.local_events[ item.key ]
+			else
+				ev = m.db.events[ item.key ]
+			end
 			if not ev then
 				break
 			end
@@ -417,25 +459,39 @@ function M.new()
 					fr.hl:SetVertexColor( 1, 1, 1, 0 )
 				end )
 				fr:SetScript( "OnMouseUp", function()
-					if fr.eventKey and m.event_popup then
+					if not fr.eventKey then
+						return
+					end
+
+					if fr.eventSource == "local" then
+						local local_event = m.db.local_events and m.db.local_events[ fr.eventKey ]
+						selected_event_key = fr.eventKey
+						if local_event and local_event.startTime then
+							selected_day = normalize_day( local_event.startTime )
+						end
+						if m.LocalEventPopup then
+							m.LocalEventPopup.show( fr.eventKey )
+						end
+						update_detail()
+						return
+					end
+
+					local event_data = m.db.events[ fr.eventKey ]
+					selected_event_key = fr.eventKey
+					if event_data and event_data.startTime then
+						selected_day = normalize_day( event_data.startTime )
+					end
+					if m.event_popup then
 						m.event_popup.show( fr.eventKey )
 					end
+					update_detail()
 				end )
 
 				table.insert( detail_items, fr )
 			end
 
-			local parts = {}
-			for c in string.gmatch( ev.color or "", "%s*([^,]+)%s*" ) do
-				table.insert( parts, c )
-			end
-
-			fr.bar:SetVertexColor(
-				((tonumber( parts[ 1 ] ) or 120) / 255),
-				((tonumber( parts[ 2 ] ) or 120) / 255),
-				((tonumber( parts[ 3 ] ) or 120) / 255),
-				1
-			)
+			local rgb = m.get_event_color( ev )
+			fr.bar:SetVertexColor( rgb[1], rgb[2], rgb[3], 1 )
 
 			fr:ClearAllPoints()
 			if i == 1 then
@@ -462,7 +518,8 @@ function M.new()
 			end
 
 			fr.metaText:SetText( su )
-			fr.eventKey = item.key
+			fr.eventKey    = item.key
+							fr.eventSource = item.source
 			fr:Show()
 		end
 	end
@@ -479,7 +536,7 @@ function M.new()
 					n = n + 1
 				end
 
-				for _, ch in pairs( cell.chips ) do
+				for _, ch in ipairs( cell.chips ) do
 					ch:Hide()
 				end
 				if cell.evDot then
@@ -489,11 +546,11 @@ function M.new()
 				if n > 0 then
 					if not cell.evDot then
 						cell.evDot = cell:CreateFontString( nil, "OVERLAY", "GameFontNormalSmall" )
-						cell.evDot:SetPoint( "TopRight", cell, "TopRight", -5, -5 )
+						cell.evDot:SetPoint( "TopRight", cell, "TopRight", -5, -18 )
 						cell.evDot:SetJustifyH( "Right" )
 						cell.evDot:SetTextColor( 1, 0.82, 0.1 )
 					end
-					cell.evDot:SetText( n > MAX_CHIPS and ("+" .. tostring( n )) or "" )
+					cell.evDot:SetText( n > MAX_CHIPS and ("+" .. tostring( n - MAX_CHIPS )) or "" )
 					cell.evDot:Show()
 
 					local shown = 0
@@ -502,12 +559,18 @@ function M.new()
 							break
 						end
 
-						local ev = m.db.events[ item.key ]
+						local ev_is_local = (item.source == "local")
+						local ev
+						if ev_is_local then
+							ev = m.db.local_events and m.db.local_events[ item.key ]
+						else
+							ev = m.db.events[ item.key ]
+						end
 						if ev then
 							local chip = cell.chips[ j ]
 							if not chip then
 								chip = CreateFrame( "Frame", nil, cell )
-								chip:SetHeight( 14 )
+								chip:SetHeight( 10 )
 								chip:EnableMouse( true )
 								chip:SetFrameStrata( cell:GetFrameStrata() )
 
@@ -518,13 +581,13 @@ function M.new()
 
 								chip.bar = chip:CreateTexture( nil, "ARTWORK" )
 								chip.bar:SetTexture( SOLID )
-								chip.bar:SetWidth( 3 )
+								chip.bar:SetWidth( 2 )
 								chip.bar:SetPoint( "TopLeft", chip, "TopLeft", 0, 0 )
 								chip.bar:SetPoint( "BottomLeft", chip, "BottomLeft", 0, 0 )
 
 								chip.lbl = chip:CreateFontString( nil, "OVERLAY", "GameFontNormalSmall" )
-								chip.lbl:SetPoint( "Left", chip, "Left", 5, 0 )
-								chip.lbl:SetPoint( "Right", chip, "Right", -2, 0 )
+								chip.lbl:SetPoint( "Left", chip, "Left", 4, 0 )
+								chip.lbl:SetPoint( "Right", chip, "Right", -1, 0 )
 								chip.lbl:SetJustifyH( "Left" )
 								chip.lbl:SetTextColor( 0.95, 0.95, 0.95 )
 
@@ -540,27 +603,47 @@ function M.new()
 
 							chip:SetFrameLevel( cell:GetFrameLevel() + 3 )
 
-							local parts = {}
-							for c in string.gmatch( ev.color or "", "%s*([^,]+)%s*" ) do
-								table.insert( parts, c )
+							if ev_is_local then
+								chip.bar:SetVertexColor( 0.6, 0.4, 1, 1 )
+							else
+								local rgb = m.get_event_color( ev )
+								chip.bar:SetVertexColor( rgb[1], rgb[2], rgb[3], 1 )
 							end
 
-							chip.bar:SetVertexColor(
-								((tonumber( parts[ 1 ] ) or 120) / 255),
-								((tonumber( parts[ 2 ] ) or 120) / 255),
-								((tonumber( parts[ 3 ] ) or 120) / 255),
-								1
-							)
-
-							chip.lbl:SetText( date( tf, ev.startTime ) .. " " .. (ev.title or "") )
-							chip.eventKey = item.key
+							local chip_title = truncate_cell_label( ev.title or "", 11 )
+							chip.lbl:SetText( date( tf, ev.startTime ) .. " " .. chip_title )
+							chip.eventKey    = item.key
+							chip.eventSource = item.source
 							chip:ClearAllPoints()
-							chip:SetPoint( "TopLeft", cell, "TopLeft", 2, -20 - shown * 15 )
-							chip:SetPoint( "TopRight", cell, "TopRight", -2, -20 - shown * 15 )
+							chip:SetPoint( "TopLeft", cell, "TopLeft", 2, -22 - shown * 11 )
+							chip:SetPoint( "TopRight", cell, "TopRight", -2, -22 - shown * 11 )
 							chip:SetScript( "OnMouseUp", function()
-								if chip.eventKey and m.event_popup then
+								if not chip.eventKey then
+									return
+								end
+
+								if chip.eventSource == "local" then
+									local local_event = m.db.local_events and m.db.local_events[ chip.eventKey ]
+									selected_event_key = chip.eventKey
+									if local_event and local_event.startTime then
+										selected_day = normalize_day( local_event.startTime )
+									end
+									if m.LocalEventPopup then
+										m.LocalEventPopup.show( chip.eventKey )
+									end
+									update_detail()
+									return
+								end
+
+								local event_data = m.db.events[ chip.eventKey ]
+								selected_event_key = chip.eventKey
+								if event_data and event_data.startTime then
+									selected_day = normalize_day( event_data.startTime )
+								end
+								if m.event_popup then
 									m.event_popup.show( chip.eventKey )
 								end
+								update_detail()
 							end )
 							chip:Show()
 							shown = shown + 1
@@ -790,12 +873,6 @@ function M.new()
 			frame.btn_settings.tooltip = m.L( "ui.settings" )
 			detail_panel.header:SetText( m.L( "ui.month_events" ) )
 			detail_panel.empty:SetText( m.L( "ui.no_events_month" ) )
-			local cbt = get_checkbox_label( settings.use_char_name )
-			if cbt then
-				cbt:SetText( m.L( "ui.use_character_name" ) )
-				cbt:SetTextColor( 1, 0.82, 0, 1 )
-				cbt:Show()
-			end
 			settings.lbl_tf:SetText( m.L( "ui.time_format" ) )
 			settings.lbl_loc:SetText( m.L( "ui.language" ) )
 			if settings.lbl_theme then settings.lbl_theme:SetText( m.L( "ui.ui_theme" ) ) end
@@ -808,9 +885,8 @@ function M.new()
 			} )
 			settings.locale_flag:SetItems( {
 				{ value = "enUS", text = m.locale_native_name and m.locale_native_name( "enUS" ) or "English" },
-				{ value = "frFR", text = m.locale_native_name and m.locale_native_name( "frFR" ) or "Français" }
+				{ value = "frFR", text = m.locale_native_name and m.locale_native_name( "frFR" ) or "Francais" }
 			} )
-			center_checkbox_with_text( settings, settings.use_char_name, -130 )
 		end
 
 		local function on_save()
@@ -819,7 +895,8 @@ function M.new()
 			local locale_changed = settings.locale_flag.selected ~= m.db.user_settings.locale_flag
 			local tf_manually_changed = settings.time_format.selected ~= m.db.user_settings.time_format
 
-			m.db.user_settings.use_character_name = settings.use_char_name:GetChecked()
+			-- use_character_name est force a 1 (case a cocher supprimee)
+			m.db.user_settings.use_character_name = 1
 			m.db.user_settings.time_format = settings.time_format.selected
 			m.db.user_settings.locale_flag = settings.locale_flag.selected or m.db.user_settings.locale_flag
 			m.db.user_settings.ui_theme = theme_to_apply
@@ -892,36 +969,70 @@ function M.new()
 		local loading_text = loading_overlay:CreateFontString( nil, "OVERLAY", "GameFontNormalLarge" )
 		loading_text:SetPoint( "Center", loading_overlay, "Center", 0, 0 )
 		loading_text:SetTextColor( 1, 0.82, 0 )
-		loading_text:SetText( m.L( "ui.loading_events" ) or "Chargement des événements..." )
+		loading_text:SetText( m.L( "ui.loading_events" ) or "Loading events..." )
 		frame.loading_overlay = loading_overlay
 
+		-- Bouton Refresh
 		frame.btn_refresh:SetScript( "OnClick", function()
 			frame.btn_refresh:Disable()
-			loading_overlay:Show()
-			m.msg.request_events()
 			if not m.debug_enabled then
-				m.ace_timer.ScheduleTimer( M, function()
-					frame.btn_refresh:Enable()
-					loading_overlay:Hide()
-				end, 30 )
+				loading_overlay:Show()
+			end
+			m.msg.request_events( true )
+			m.ace_timer.ScheduleTimer( M, function()
+				frame.btn_refresh:Enable()
+				loading_overlay:Hide()
+			end, 30 )
+		end )
+
+		-- Bouton Settings
+		frame.btn_settings = gui.tiny_button( frame, "S", m.L( "ui.settings" ), "#F3DF2B" )
+		frame.btn_settings.tooltip = m.L( "ui.settings" or "Settings")
+		frame.btn_settings:SetPoint( "Right", frame.btn_refresh, "Left", -5, 0 )
+
+		-- Force text center
+		if frame.btn_settings:GetFontString() then
+		    local fs = frame.btn_settings:GetFontString()
+		    fs:ClearAllPoints()
+		    fs:SetPoint("CENTER", frame.btn_settings, "CENTER", 0, 0)
+		    fs:SetJustifyH("CENTER")
+		    fs:SetJustifyV("MIDDLE")
+		end
+
+		-- Bouton Nouvel evenement
+		frame.btn_new_event = m.GuiElements.tiny_button( frame, "+", m.L( "ui.new_event" ), "#00FFFF" )
+		frame.btn_new_event.tooltip = m.L( "ui.new_event" or "Create a new envent")
+		frame.btn_new_event:SetPoint( "Right", frame.btn_settings, "Left", -2, 0 )
+
+		-- Force text center
+		if frame.btn_new_event:GetFontString() then
+		    local fs = frame.btn_new_event:GetFontString()
+		    fs:ClearAllPoints()
+		    fs:SetPoint("CENTER", frame.btn_new_event, "CENTER", 0, 0)
+		    fs:SetJustifyH("CENTER")
+		    fs:SetJustifyV("MIDDLE")
+		end
+
+		frame.btn_new_event:SetScript( "OnClick", function()
+			if m.EventManagePopup then
+				m.EventManagePopup.show_create()
 			end
 		end )
 
-		frame.btn_settings = gui.tiny_button( frame, "S", m.L( "ui.settings" ), "#F3DF2B" )
-		frame.btn_settings.tooltip = m.L( "ui.settings" )
-		frame.btn_settings:SetPoint( "Right", frame.btn_refresh, "Left", -5, 0 )
-
-		frame.online_indicator = gui.create_online_indicator( frame, frame.btn_settings )
+		-- LED bot indicator
+		frame.online_indicator = gui.create_online_indicator( frame, frame.btn_new_event )
 
 		local bPrev = CreateFrame( "Button", nil, frame )
 		bPrev:SetWidth( 20 )
 		bPrev:SetHeight( 20 )
 		bPrev:SetPoint( "CENTER", frame, "Top", -105, -21 )
 		bPrev:EnableMouse( true )
+
 		local tP = bPrev:CreateTexture( nil, "ARTWORK" )
 		tP:SetTexture( TEX .. "UI-Calendar-Left-Arrow" )
 		tP:SetTexCoord( TC.Arrow[ 1 ], TC.Arrow[ 2 ], TC.Arrow[ 3 ], TC.Arrow[ 4 ] )
 		tP:SetAllPoints( bPrev )
+
 		bPrev:SetScript( "OnEnter", function()
 			tP:SetVertexColor( 1, 0.82, 0 )
 		end )
@@ -1062,7 +1173,7 @@ function M.new()
 		local settings_label_width = 105
 		local settings_dropdown_x = settings_label_x + settings_label_width + 6
 
-		local btn_welcome = gui.create_button( settings, m.L( "actions.welcome_popup" ) or "Welcome popup", 130, function()
+		local btn_welcome = gui.create_button( settings, m.L( "actions.welcome_popup" ) or m.L( "ui.welcome_popup" ) or "Welcome popup", 130, function()
 			m.welcome_popup.show()
 			frame:Hide()
 		end )
@@ -1077,21 +1188,25 @@ function M.new()
 				settings.refresh_discord_ui()
 			end
 		end )
-		btn_disconnect:SetPoint( "TopRight", btn_welcome, "TopRight", 0, -30 )
+		-- Meme position que btn_welcome : ils s'excluent mutuellement
+		btn_disconnect:SetPoint( "TopRight", settings, "TopRight", -10, settings_first_row_y )
 		btn_disconnect:Hide()
 		settings.btn_disconnect = btn_disconnect
 
 		local function refresh_discord_ui()
 			if m.db.user_settings.discord_id and m.db.user_settings.discord_id ~= "" then
+				btn_welcome:Hide()
 				btn_disconnect:Show()
 			else
+				btn_welcome:Show()
 				btn_disconnect:Hide()
 			end
 		end
 		settings.refresh_discord_ui = refresh_discord_ui
 
 		local btn_save = gui.create_button( settings, m.L( "actions.save" ) or "Save", 110, on_save )
-		btn_save:SetPoint( "TopRight", btn_disconnect, "TopRight", 0, -30 )
+		-- Ancre sur btn_welcome (toujours a la meme position, visible ou non)
+		btn_save:SetPoint( "TopRight", btn_welcome, "TopRight", 0, -30 )
 		settings.btn_save = btn_save
 
 		local lbl_tf = settings:CreateFontString( nil, "ARTWORK", "RCFontNormal" )
@@ -1132,7 +1247,7 @@ function M.new()
 		dd_loc:SetPoint( "TopLeft", settings, "TopLeft", settings_dropdown_x, settings_first_row_y - settings_row_spacing + 2 )
 		dd_loc:SetItems( {
 			{ value = "enUS", text = m.locale_native_name and m.locale_native_name( "enUS" ) or "English" },
-			{ value = "frFR", text = m.locale_native_name and m.locale_native_name( "frFR" ) or "Français" }
+			{ value = "frFR", text = m.locale_native_name and m.locale_native_name( "frFR" ) or "Francais" }
 		} )
 		settings.locale_flag = dd_loc
 
@@ -1167,21 +1282,12 @@ function M.new()
 		end
 		settings.dd_theme = dd_theme
 
-		local cb = CreateFrame( "CheckButton", "RaidCalendarPopupCheckboxBlizzard", settings, "UICheckButtonTemplate" )
-		cb:SetWidth( 22 )
-		cb:SetHeight( 22 )
-		local cbtext = getglobal( cb:GetName() .. "Text" )
-		cbtext:SetText( m.L( "ui.use_character_name" ) )
-		cbtext:SetTextColor( 1, 0.82, 0, 1 )
-		cbtext:Show()
-		settings.use_char_name = cb
-		center_checkbox_with_text( settings, cb, -130 )
+		-- La case "use_character_name" est supprimee, la valeur est forcee a 1 dans RaidCalendar.lua
 
 		frame.btn_settings:SetScript( "OnClick", function()
 			if settings:IsVisible() then
 				settings:Hide()
 			else
-				settings.use_char_name:SetChecked( m.db.user_settings.use_character_name )
 				settings.time_format:SetSelected( m.db.user_settings.time_format or "24" )
 				settings.locale_flag:SetSelected( m.db.user_settings.locale_flag or "frFR" )
 				pending_ui_theme = m.db.user_settings.ui_theme or "Original"
@@ -1194,16 +1300,8 @@ function M.new()
 			end
 		end )
 
-		local elapsed = 0
-		frame:SetScript( "OnUpdate", function()
-			elapsed = elapsed + arg1
-			if elapsed >= 5 then
-				elapsed = 0
-				if frame.online_indicator then
-					frame.online_indicator.update()
-				end
-			end
-		end )
+		-- NOTE: online_indicator refresh is handled by its own OnUpdate in GuiElements.
+		-- No secondary OnUpdate needed here.
 
 		frame:SetScript( "OnHide", function()
 			if detail_panel then
@@ -1212,6 +1310,7 @@ function M.new()
 			if settings:IsVisible() then
 				settings:Hide()
 			end
+			if m.close_all_popups then m.close_all_popups() end
 		end )
 
 		frame.refresh = function()
@@ -1235,6 +1334,9 @@ function M.new()
 		end
 
 		refresh_data( false )
+		if table.getn( m.db.local_events or {} ) == 0 then
+			request_local_events_once( false )
+		end
 		ensure_selected_day()
 
 		popup:Show()
@@ -1244,11 +1346,12 @@ function M.new()
 
 		render_calendar()
 		if m.msg then
-			m.msg.request_events()
+			m.msg.request_events( true )
 		end
 	end
 
 	local function hide()
+		local_events_requested = false
 		if popup then
 			popup:Hide()
 		end
@@ -1292,6 +1395,9 @@ function M.new()
 
 	local function update()
 		if popup and popup:IsVisible() then
+			if table.getn( m.db.local_events or {} ) > 0 then
+				local_events_requested = false
+			end
 			if popup.loading_overlay then
 				popup.loading_overlay:Hide()
 			end
@@ -1307,9 +1413,6 @@ function M.new()
 		if not popup then
 			return
 		end
-		if popup.settings and popup.settings.use_char_name then
-			popup.settings.use_char_name:SetChecked( m.db.user_settings.use_character_name )
-		end
 		if popup.settings and popup.settings.time_format then
 			popup.settings.time_format:SetSelected( m.db.user_settings.time_format )
 		end
@@ -1319,15 +1422,6 @@ function M.new()
 		pending_ui_theme = m.db.user_settings.ui_theme or "Original"
 		if popup.settings and popup.settings.dd_theme then
 			popup.settings.dd_theme:SetSelected( pending_ui_theme )
-		end
-		if popup.settings and popup.settings.use_char_name then
-			local cbt = get_checkbox_label( popup.settings.use_char_name )
-			if cbt then
-				cbt:SetText( m.L( "ui.use_character_name" ) )
-				cbt:SetTextColor( 1, 0.82, 0, 1 )
-				cbt:Show()
-			end
-			center_checkbox_with_text( popup.settings, popup.settings.use_char_name, -130 )
 		end
 	end
 

@@ -115,7 +115,7 @@ function M.new()
 				} )
 			elseif options.frame_style == "PARCHMENT" then
 				-- Pas de backdrop : les textures parchemin font office de bordure/fond
-				-- On crée les 4 textures parchemin directement sur le frame
+				-- On cree les 4 textures parchemin directement sur le frame
 				local p = options.parchment or {}
 				local TEX = p.tex_path or "Interface\\AddOns\\RaidCalendar\\Textures\\"
 				local W   = options.width or 280
@@ -154,7 +154,7 @@ function M.new()
 				frame.parchment_tex_right:SetWidth(BR)
 				frame.parchment_tex_right:SetPoint("TopLeft",frame,"TopLeft",W-BR,-BT)
 
-				-- Méthode utilitaire pour mettre à jour la hauteur des bords gauche/droite
+				-- Methode utilitaire pour mettre a jour la hauteur des bords gauche/droite
 				frame.parchment_set_inner_height = function(innerH)
 					frame.parchment_tex_left:SetHeight(innerH)
 					frame.parchment_tex_right:SetHeight(innerH)

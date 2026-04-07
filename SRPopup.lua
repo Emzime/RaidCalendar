@@ -525,12 +525,12 @@ function M.new()
 		local comment = popup.input_comment:GetText() ~= "" and popup.input_comment:GetText() or nil
 
 		if not spec then
-			m.error( "No specialization selected" )
+			m.error( m.L and m.L("ui.spec_not_selected") or "No specialization selected" )
 			return
 		end
 
 		if not (sr1 or sr2) then
-			m.error( "No items reserved" )
+			m.error( m.L and m.L("ui.no_items_reserved") or "No items reserved" )
 			return
 		end
 
@@ -564,7 +564,7 @@ function M.new()
 		local missing = {}
 
 		if getn( raid_members ) == 0 then
-			m.error( "You are not in a raid group" )
+			m.error( m.L and m.L("ui.not_in_raid_group") or "You are not in a raid group" )
 			return
 		end
 
@@ -575,7 +575,7 @@ function M.new()
 		end
 
 		if getn( missing ) == 0 then
-			m.info( "No absentees found" )
+			m.info( m.L and m.L("ui.no_absentees_found") or "No absentees found" )
 			return
 		end
 
@@ -998,7 +998,11 @@ function M.new()
 
 	local function show( _event_id )
 		event_id = _event_id
-		if m.db.events[ event_id ].srId then
+		if m.db.events[ event_id ] and m.db.events[ event_id ].srId then
+			-- Ferme les autres popups secondaires
+			if m.event_popup and m.event_popup.hide then m.event_popup.hide() end
+			if m.LocalEventPopup and m.LocalEventPopup.hide then m.LocalEventPopup.hide() end
+			if m.EventManagePopup and m.EventManagePopup.hide then m.EventManagePopup.hide() end
 			if not popup then
 				popup = create_frame()
 			end

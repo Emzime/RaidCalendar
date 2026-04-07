@@ -9,9 +9,9 @@ local M = {}
 local scroll_drop = LibStub:GetLibrary( "LibScrollDrop-1.3" )
 
 --- Injecte un dropdown "UI Theme" dans un frame de settings existant
---- La sélection du thème reste en attente jusqu'au clic sur Save.
+--- La selection du theme reste en attente jusqu'au clic sur Save.
 --- @param settings Frame  le frame settings du CalendarPopup courant
---- @param anchor_below Frame  l'élément sous lequel le dropdown se positionne
+--- @param anchor_below Frame  l'element sous lequel le dropdown se positionne
 function M.inject( settings, anchor_below )
     if not settings or not scroll_drop then return end
 
@@ -23,7 +23,7 @@ function M.inject( settings, anchor_below )
     } )
 
     -- Positionner dd_theme exactement en dessous de anchor_below,
-    -- aligné sur son bord gauche (même x que dd_locale/dd_timeformat)
+    -- aligne sur son bord gauche (meme x que dd_locale/dd_timeformat)
     dd_theme:SetPoint( "TopLeft", anchor_below, "BottomLeft", 0, -8 )
     dd_theme:SetItems( {
         { value = "Original", text = "Original" },

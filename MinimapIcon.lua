@@ -45,20 +45,23 @@ function M.new()
 				label = day and (string.upper( string.sub( day, 1, 1 ) ) .. string.sub( day, 2 )) or day
 			end
 
-			local _, index = m.find( label, grouped, "label" )
-
-			if not index then
-				table.insert( grouped, { label = label, entries = {} } )
-				index = getn( grouped )
+			-- O(1) lookup via direct table key instead of m.find() O(n) scan
+			if not grouped[ label ] then
+				grouped[ label ] = { label = label, entries = {}, _order = getn( grouped ) + 1 }
+				table.insert( grouped, grouped[ label ] )
 			end
 
-			table.insert( grouped[ index ].entries, event )
+			table.insert( grouped[ label ].entries, event )
 		end
 
 		return grouped
 	end
 
-
+	-- Cache the tooltip grouping for 5 seconds.
+	-- OnTooltipShow fires on every mouse-over — recomputing group_by_day each time
+	-- means iterating all events + O(n) find() per event on every hover.
+	local _tooltip_cache = nil
+	local _tooltip_cache_time = 0
 
 	function obj.OnTooltipShow( self )
 		local events = {}
@@ -74,17 +77,25 @@ function M.new()
 			return a.startTime < b.startTime
 		end )
 
-		local grouped = group_by_day( events )
+		-- Rebuild grouped data only when stale (> 5s) or event list changed size
+		local n = getn( events )
+		if not _tooltip_cache or GetTime() - _tooltip_cache_time > 5 or _tooltip_cache._n ~= n then
+			_tooltip_cache = group_by_day( events )
+			_tooltip_cache._n = n
+			_tooltip_cache_time = GetTime()
+		end
 
 		self:AddLine( m.L and m.L( "ui.upcoming_raids" ) or "Upcoming raids" )
 		self:AddLine( " " )
 
-		for _, group in ipairs( grouped ) do
+		for _, group in ipairs( _tooltip_cache ) do
 			self:AddLine( group.label )
 			for _, e in ipairs( group.entries ) do
 				local event = m.db.events[ e.key ]
-				local start_time = date( m.time_format, event.startTime )
-				self:AddLine( string.format( "  - %s |cffffffff[%s]|r", m.capitalize_words( event.title ), start_time ) )
+				if event then
+					local start_time = date( m.time_format, event.startTime )
+					self:AddLine( string.format( "  - %s |cffffffff[%s]|r", m.capitalize_words( event.title ), start_time ) )
+				end
 			end
 		end
 	end

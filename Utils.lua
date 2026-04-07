@@ -5,10 +5,84 @@ local M = RaidCalendar
 
 local bot_online
 local bot_check_time = 0
+local bot_last_seen = 0
+local bot_poll_time = 0
+local bot_heartbeat_interval_seconds = 10
+local bot_online_threshold_seconds = 15
+local bot_degraded_threshold_seconds = 25
+local bot_timeout_seconds = bot_degraded_threshold_seconds
 
 function M.reset_bot_status_cache()
 	bot_check_time = 0
+	bot_last_seen = 0
+	bot_poll_time = 0
 	bot_online = nil
+end
+
+-- Called when RC_BOT_ONLINE is received (BSTATUS or heartbeat).
+function M.set_bot_online( online )
+	bot_online = online and true or false
+	if bot_online then
+		bot_last_seen = time()
+	elseif not bot_online then
+		bot_last_seen = 0
+	end
+end
+
+function M.mark_bot_status_poll()
+	bot_poll_time = time()
+end
+
+function M.get_bot_status_poll_time()
+	return bot_poll_time or 0
+end
+
+function M.get_bot_last_seen()
+	return bot_last_seen or 0
+end
+
+function M.get_bot_timeout_seconds()
+	return bot_timeout_seconds
+end
+
+function M.get_bot_heartbeat_interval_seconds()
+	return bot_heartbeat_interval_seconds
+end
+
+function M.touch_bot_heartbeat()
+	bot_online = true
+	bot_last_seen = time()
+end
+
+function M.get_bot_state()
+	if bot_online == false then
+		return "OFFLINE"
+	end
+
+	if bot_last_seen <= 0 then
+		return "OFFLINE"
+	end
+
+	local elapsed = time() - bot_last_seen
+
+	if elapsed <= bot_online_threshold_seconds then
+		return "ONLINE"
+	elseif elapsed <= bot_degraded_threshold_seconds then
+		return "DEGRADED"
+	else
+		bot_online = false
+		return "OFFLINE"
+	end
+end
+
+function M.get_bot_status_label_key()
+	local state = M.get_bot_state()
+	if state == "ONLINE" then
+		return "ui.online"
+	elseif state == "DEGRADED" then
+		return "ui.degraded"
+	end
+	return "ui.offline"
 end
 
 --- @param hex string
@@ -71,31 +145,24 @@ end
 ---@return number a
 ---@nodiscard
 function M.bot_online_status()
-	if time() - bot_check_time > 600 or not bot_online then
-		M.debug( "Checking bot online status" )
-		bot_check_time = time()
-		bot_online = false
-		for i = 1, GetNumGuildMembers() do
-			local name, _, _, _, _, _, _, _, online = GetGuildRosterInfo( i )
-			if name == M.db.user_settings.bot_name and online == 1 then
-				bot_online = true
-				break
-			end
-		end
+	local state = M.get_bot_state()
+
+	if state == "ONLINE" then
+		return 0, 1, 0, 0.9
+	elseif state == "DEGRADED" then
+		return 1, 0.65, 0, 0.9
 	end
 
-	if bot_online then
-		return 0, 1, 0, 0.9
-	else
-		return 1, 0, 0, 0.9
-	end
+	return 1, 0, 0, 0.9
 end
 
 ---@param value string|number
 ---@param t table
 ---@param extract_field string?
 function M.find( value, t, extract_field )
-	if type( t ) ~= "table" or M.count( t ) == 0 then return nil end
+	-- Simple nil/type guard only — M.count() would iterate the whole table
+	-- just to check emptiness, which is wasteful before the loop that follows.
+	if type( t ) ~= "table" then return nil end
 
 	for i, v in pairs( t ) do
 		local val = extract_field and v[ extract_field ] or v
@@ -138,6 +205,25 @@ function M.capitalize_words( str )
 	return string.gsub( str, "(%w)(%w*)", function( first, rest )
 		return string.upper( first ) .. string.lower( rest )
 	end )
+end
+
+--- Parse a "r, g, b" color string and cache the result on the event object.
+--- Prevents repeated string.gmatch allocation on every render call.
+--- Result is stored in ev._rgb and auto-invalidated when the event object is replaced.
+---@param ev table
+---@return table rgb  {[1]=r, [2]=g, [3]=b}  each in [0,1]
+function M.get_event_color( ev )
+	if ev._rgb then return ev._rgb end
+	local parts = {}
+	for c in string.gmatch( ev.color or "", "%s*([^,]+)%s*" ) do
+		table.insert( parts, c )
+	end
+	ev._rgb = {
+		(tonumber( parts[1] ) or 120) / 255,
+		(tonumber( parts[2] ) or 120) / 255,
+		(tonumber( parts[3] ) or 120) / 255,
+	}
+	return ev._rgb
 end
 
 function M.is_new_version( mine, theirs )

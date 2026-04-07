@@ -39,6 +39,12 @@ function M.new()
 	local gui = m.GuiElements
 
 	local buttons = { "Signup", "Bench", "Late", "Tentative", "Absence", "Change Spec" }
+	-- Pre-computed mapping: "Signup" → "btn_signup", "Change Spec" → "btn_change_spec", etc.
+	-- Avoids repeated string.gsub(string.lower(v)) calls inside every refresh/click handler.
+	local btn_keys = {}
+	for _, v in ipairs( buttons ) do
+		btn_keys[ v ] = "btn_" .. string.gsub( string.lower( v ), "%s", "_" )
+	end
 
 	local function save_position( self )
 		local point, _, relative_point, x, y = self:GetPoint()
@@ -78,6 +84,29 @@ function M.new()
 		m.calendar_popup.unselect()
 	end
 
+	local function extract_tagged_link( description, tag )
+		if not description or description == "" then
+			return nil
+		end
+
+		local pattern = tag .. "[ ]*%-%>[ ]*(https://[^%s]+)"
+		return string.match( description, pattern )
+	end
+
+	local function strip_tagged_links( description )
+		if not description or description == "" then
+			return description
+		end
+
+		local cleaned = description
+		cleaned = string.gsub( cleaned, "SR[ ]*%-%>[ ]*https://[^\r\n]+[\r\n]*", "" )
+		cleaned = string.gsub( cleaned, "RF[ ]*%-%>[ ]*https://[^\r\n]+[\r\n]*", "" )
+		cleaned = string.gsub( cleaned, "\n\n\n+", "\n\n" )
+		cleaned = string.gsub( cleaned, "^[\r\n%s]+", "" )
+		cleaned = string.gsub( cleaned, "[\r\n%s]+$", "" )
+		return cleaned
+	end
+
 	---@param frame_type string
 	local function get_from_cache( frame_type )
 		frame_cache[ frame_type ] = frame_cache[ frame_type ] or {}
@@ -89,7 +118,13 @@ function M.new()
 		end
 	end
 
+	-- Guild roster can be 500+ members. Rebuilding on every refresh() is expensive.
+	-- Use a 30s TTL: only re-query the API if the cache is stale.
+	local _guild_cache_time = 0
 	local function update_guild_online_cache()
+		local now = GetTime()
+		if now - _guild_cache_time < 30 then return end
+		_guild_cache_time = now
 		m.wipe( guild_online_cache )
 		if IsInGuild() then
 			for i = 1, GetNumGuildMembers() do
@@ -142,9 +177,6 @@ function M.new()
 			if i <= getn( invite_list ) then
 				InviteByName( invite_list[ i ] )
 				i = i + 1
-				if i > 4 and not IsInRaid() then
-					ConvertToRaid()
-				end
 				m.ace_timer.ScheduleTimer( M, function()
 					invite_next()
 				end, 0.7 )
@@ -152,10 +184,11 @@ function M.new()
 		end
 
 		if getn( invite_list ) > 0 then
-			m.debug( "Inviting " .. getn( invite_list ) .. " players to event: " .. event.title )
+			m.debug( m.L( "ui.inviting" ) or "Inviting " .. getn( invite_list ) .. m.L( "ui.players_to_event" ) or " players to event: " .. event.title )
+			if not IsInRaid() then ConvertToRaid() end
 			invite_next()
 		else
-			m.error( "No players to invite" )
+			m.error( m.L( "ui.no_players_to_invite" ) or "No players to invite" )
 		end
 	end
 
@@ -163,7 +196,7 @@ function M.new()
 		local btn_name = this.action or this.title  -- action = nom original anglais
 
 		if not m.db.user_settings.discord_id then
-			m.error( "DiscordID is not set" )
+			m.error( m.L( "ui.discord_not_set" ) or "DiscordID is not set" )
 			return
 		end
 
@@ -172,14 +205,14 @@ function M.new()
 			m.db.user_settings[ event.templateId .. "_specName" ] = popup.dd_spec.selected
 
 			if not m.db.user_settings[ event.templateId .. "_className" ] then
-				m.error( "Class not selected" )
+				m.error( m.L( "ui.class_not_selected" ) or "Class not selected" )
 				return
 			elseif not m.db.user_settings[ event.templateId .. "_specName" ] then
-				m.error( "Spec not selected" )
+				m.error( m.L( "ui.spec_not_selected" ) or "Spec not selected" )
 				return
 			end
 			for _, v in buttons do
-				local btn = "btn_" .. string.gsub( string.lower( v ), "%s", "_" )
+				local btn = btn_keys[ v ]
 				popup[ btn ]:Disable()
 			end
 			if signup_id then
@@ -189,7 +222,7 @@ function M.new()
 			end
 		elseif btn_name == "Change Spec" then
 			for _, v in buttons do
-				local btn = "btn_" .. string.gsub( string.lower( v ), "%s", "_" )
+				local btn = btn_keys[ v ]
 				popup[ btn ]:Hide()
 			end
 			popup.cs_change:Enable()
@@ -202,7 +235,7 @@ function M.new()
 			popup.dd_spec:Show()
 		else
 			for _, v in buttons do
-				local btn = "btn_" .. string.gsub( string.lower( v ), "%s", "_" )
+				local btn = btn_keys[ v ]
 				popup[ btn ]:Disable()
 			end
 			m.msg.signup_edit( event.id, signup_id, btn_name )
@@ -211,12 +244,12 @@ function M.new()
 
 	local function change_spec()
 		if not popup.dd_class.selected then
-			m.error( "Class not selected" )
+			m.error( m.L( "ui.class_not_selected" ) or "Class not selected" )
 			return
 		end
 
 		if not popup.dd_spec.selected then
-			m.error( "Spec not selected" )
+			m.error( m.L( "ui.spec_not_selected" ) or "Spec not selected" )
 			return
 		end
 
@@ -331,11 +364,32 @@ function M.new()
 		---
 		--- Titlebar buttons
 		---
-		frame.btn_invite = m.GuiElements.tiny_button( frame, "I", "Invite to raid", "#7b1fa2" )
+		frame.btn_invite = m.GuiElements.tiny_button( frame, "I", m.L( "ui.invite_to_raid" ) or "Invite to raid", "#7b1fa2" )
 		frame.btn_invite:SetPoint( "Right", frame.titlebar.btn_close, "Left", 2, 0 )
 		frame.btn_invite:SetScript( "OnClick", on_invite_click )
+		frame.btn_invite:Hide()
 
-		frame.online_indicator = gui.create_online_indicator( frame, frame.btn_invite )
+		-- Bouton Gerer l'evenement (crayon - visible si leader ou role manager)
+		frame.btn_manage = m.GuiElements.tiny_button( frame, "E", m.L( "ui.manage_event" ) or "Manage event", "#1565c0" )
+		frame.btn_manage:SetPoint( "Right", frame.btn_invite, "Left", -4, 0 )
+		frame.btn_manage:SetScript( "OnClick", function()
+			if event and m.EventManagePopup then
+				m.EventManagePopup.show_edit( event.id )
+			end
+		end )
+		frame.btn_manage:Hide()
+
+		-- Bouton Gestion des Groupes (manager uniquement)
+		frame.btn_groups = m.GuiElements.tiny_button( frame, "G", m.L( "ui.manage_groups" ) or "Manage groups", "#e65100" )
+		frame.btn_groups:SetPoint( "Right", frame.btn_manage, "Left", -4, 0 )
+		frame.btn_groups:SetScript( "OnClick", function()
+			if event and m.GroupPopup then
+				m.GroupPopup.toggle( event.id )
+			end
+		end )
+		frame.btn_groups:Hide()
+
+		frame.online_indicator = gui.create_online_indicator( frame, frame.btn_groups )
 
 		local border_desc = m.FrameBuilder.new()
 				:parent( frame )
@@ -353,31 +407,44 @@ function M.new()
 		end )
 		frame.border_desc = border_desc
 
-		-- Champ lien SR (en bas de la zone description, comme CalendarAddon)
-		frame.link_label = border_desc:CreateFontString( nil, "ARTWORK", "GameFontNormalSmall" )
-		frame.link_label:SetPoint( "BottomLeft", border_desc, "BottomLeft", 8, 10 )
-		frame.link_label:SetText( m.L( "ui.sr_link" ) )
-		frame.link_label:Hide()
+		-- Champs SR / RF copiables (Ctrl+C) affiches en haut de la zone de description
+		frame.sr_label = border_desc:CreateFontString( nil, "ARTWORK", "GameFontNormalSmall" )
+		frame.sr_label:SetPoint( "TopLeft", border_desc, "TopLeft", 8, -10 )
+		frame.sr_label:SetTextColor( 1, 0.82, 0, 1 )  -- or
+		frame.sr_label:SetText( "SR :" )
+		frame.sr_label:Hide()
 
-		frame.link_box = CreateFrame( "EditBox", nil, border_desc )
-		frame.link_box:SetAutoFocus( false )
-		frame.link_box:SetMultiLine( false )
-		frame.link_box:SetFontObject( GameFontHighlightSmall )
-		frame.link_box:SetHeight( 18 )
-		frame.link_box:SetPoint( "BottomLeft", border_desc, "BottomLeft", 36, 6 )
-		frame.link_box:SetPoint( "BottomRight", border_desc, "BottomRight", -26, 6 )
-		frame.link_box:SetBackdrop( { bgFile = "Interface\\Buttons\\WHITE8X8", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true, tileSize = 8, edgeSize = 8, insets = { left = 2, right = 2, top = 2, bottom = 2 } } )
-		frame.link_box:SetBackdropColor( 0.02, 0.02, 0.02, 0.95 )
-		frame.link_box:SetBackdropBorderColor( 0.2, 0.2, 0.2, 1 )
-		frame.link_box:SetTextInsets( 4, 4, 0, 0 )
-		frame.link_box:SetScript( "OnEscapePressed", function() this:ClearFocus() end )
-		frame.link_box:SetScript( "OnEditFocusGained", function() this:HighlightText() end )
-		frame.link_box:Hide()
+		local function make_link_box( parent, y )
+			local box = CreateFrame( "EditBox", nil, parent )
+			box:SetAutoFocus( false )
+			box:SetMultiLine( false )
+			box:SetFontObject( GameFontHighlightSmall )
+			box:SetHeight( 18 )
+			box:SetPoint( "TopLeft",  parent, "TopLeft",  36, y )
+			box:SetPoint( "TopRight", parent, "TopRight", -26, y )
+			box:SetBackdrop( {
+				bgFile   = "Interface\\Buttons\\WHITE8X8",
+				edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+				tile = true, tileSize = 8, edgeSize = 8,
+				insets = { left = 2, right = 2, top = 2, bottom = 2 },
+			} )
+			box:SetBackdropColor( 0.03, 0.03, 0.04, 0.98 )
+			box:SetBackdropBorderColor( 0.35, 0.28, 0.08, 0.95 )  -- bordure doree subtile
+			box:SetTextInsets( 6, 4, 0, 0 )
+			box:SetScript( "OnEscapePressed", function() this:ClearFocus() end )
+			box:SetScript( "OnEditFocusGained", function() this:HighlightText() end )
+			box:Hide()
+			return box
+		end
+
+		frame.sr_box = make_link_box( border_desc, -6 )
+
 
 		local scroll_bar = CreateFrame( "Slider", "RaidCalendarDescScrollBar", border_desc, "UIPanelScrollBarTemplate" )
 		frame.scroll_bar = scroll_bar
-		scroll_bar:SetPoint( "TopRight", border_desc, "TopRight", -5, -20 )
-		scroll_bar:SetPoint( "Bottom", border_desc, "Bottom", 0, 20 )
+		-- Position initiale : sous les deux boxes (Y=-54). Ajuste dynamiquement dans refresh().
+		scroll_bar:SetPoint( "TopRight", border_desc, "TopRight", -5, -30 )
+		scroll_bar:SetPoint( "Bottom",   border_desc, "Bottom",    0,  20 )
 		scroll_bar:SetMinMaxValues( 0, 0 )
 		scroll_bar:SetValueStep( 1 )
 		scroll_bar:SetScript( "OnValueChanged", function()
@@ -385,13 +452,13 @@ function M.new()
 		end )
 
 		frame.desc_scroll = CreateFrame( "ScrollFrame", nil, border_desc )
-		frame.desc_scroll:SetPoint( "TopLeft", border_desc, "TopLeft", 8, -5 )
+		frame.desc_scroll:SetPoint( "TopLeft", border_desc, "TopLeft", 8, -30 )
 		frame.desc_scroll:SetPoint( "BottomRight", border_desc, "BottomRight", -22, 5 )
 
 		frame.desc_frame = CreateFrame( "Frame", nil, frame.desc_scroll )
 		frame.desc_scroll:SetScrollChild( frame.desc_frame )
 		frame.desc_frame:SetWidth( 480 )
-		frame.desc_frame:SetHeight( 1 )
+		frame.desc_frame:SetHeight( 40 )
 
 		frame.desc = gui.create_rich_text_frame( frame.desc_frame, 480 )
 		frame.desc:SetPoint( "Top", frame.desc_frame, "Top", 0, 0 )
@@ -433,7 +500,7 @@ function M.new()
 
 		local prev
 		for _, v in buttons do
-			local btn = "btn_" .. string.gsub( string.lower( v ), "%s", "_" )
+			local btn = btn_keys[ v ]
 			frame[ btn ] = gui.create_button( frame, m.L( v ), 100, on_button_click )
 			frame[ btn ].action = v  -- nom original anglais pour la logique
 			if prev then
@@ -536,7 +603,7 @@ function M.new()
 		-- Re-translate button texts in case locale changed
 		if m.L then
 			for _, v in buttons do
-				local btn = "btn_" .. string.gsub( string.lower( v ), "%s", "_" )
+				local btn = btn_keys[ v ]
 				if popup[ btn ] then popup[ btn ]:SetText( m.L( v ) ) end
 			end
 			if popup.btn_access then popup.btn_access:SetText( m.L( "actions.refresh_access" ) ) end
@@ -562,29 +629,78 @@ function M.new()
 			return
 		end
 
-		local show_invite = event.leaderId == m.db.user_settings.discord_id or m.debug_enabled
-		if show_invite then
+		local is_leader    = event.leaderId == m.db.user_settings.discord_id or m.debug_enabled
+		local has_manager  = m.db.user_settings.has_manager_role == true
+		local has_raider   = m.db.user_settings.has_raider_role == true
+		local can_signup   = has_raider or has_manager
+		if is_leader or has_manager then
+			popup.btn_invite:Show()
 			popup.btn_invite:Enable()
 		else
-			popup.btn_invite:Disable()
+			popup.btn_invite:Hide()
+		end
+		if is_leader or has_manager then
+			popup.btn_manage:Show()
+		else
+			popup.btn_manage:Hide()
+		end
+		if (is_leader or has_manager) and event.roles then
+			popup.btn_groups:Show()
+		else
+			popup.btn_groups:Hide()
 		end
 
 		popup.titlebar.title:SetText( event.title )
-		popup.desc:SetRichText( event.description )
+
+		local clean_description = strip_tagged_links( event.description )
+		local sr_url = extract_tagged_link( event.description, "SR" )
+
+		popup.desc:SetRichText( clean_description or "" )
 		popup.scroll_bar:SetMinMaxValues( 0, math.max( 0, popup.desc:GetHeight() - 65 ) )
 		popup.scroll_bar:SetValue( 0 )
 
-		-- Afficher le lien SR en bas de la zone description
-		if popup.link_box then
-			local url = string.match( event.description or "", "(https://[%w%.%-_/]+)" )
-			if url then
-				popup.link_label:Show()
-				popup.link_box:SetText( url )
-				popup.link_box:Show()
-			else
-				popup.link_label:Hide()
-				popup.link_box:Hide()
-			end
+		-- ── Liens SR / RF ─────────────────────────────────────────────────────────
+		-- Un event RaidRes est identifie par la presence d'un lien SR.
+		-- Pour ces events, SR et RF sont toujours affiches (RF peut etre vide).
+		-- Pour les events Raid-Helper standard, les deux boxes restent masquees.
+		local is_raidres = sr_url and sr_url ~= ""
+		local has_desc   = clean_description and clean_description ~= ""
+
+		if is_raidres then
+			popup.sr_label:Show()
+			popup.sr_box:SetText( sr_url )
+			popup.sr_box:Show()
+		else
+			popup.sr_label:Hide()
+			popup.sr_box:SetText( "" )
+			popup.sr_box:Hide()
+		end
+
+		-- ── Geometrie dynamique de border_desc ────────────────────────────────
+		-- Fonction locale pour recalculer l'ancrage de border_desc.
+		local function set_border_height( h )
+			popup.border_desc:ClearAllPoints()
+			popup.border_desc:SetPoint( "TopLeft",    popup, "TopLeft",  10, -32 )
+			popup.border_desc:SetPoint( "BottomRight", popup, "TopRight", -10, -(32 + h) )
+		end
+
+		if is_raidres and not has_desc then
+			-- Vue compacte : sr_box uniquement (rf supprimee), un peu de hauteur quand meme
+			set_border_height( 38 )
+			popup.desc_scroll:Hide()
+			popup.scroll_bar:Hide()
+		else
+			-- Vue complete : desc_scroll visible sous les boxes (ou depuis le haut si pas de boxes)
+			set_border_height( 100 )
+			local desc_y = is_raidres and -30 or -8
+			popup.desc_scroll:ClearAllPoints()
+			popup.desc_scroll:SetPoint( "TopLeft",    popup.border_desc, "TopLeft",    8,   desc_y )
+			popup.desc_scroll:SetPoint( "BottomRight", popup.border_desc, "BottomRight", -22, 5 )
+			popup.scroll_bar:ClearAllPoints()
+			popup.scroll_bar:SetPoint( "TopRight", popup.border_desc, "TopRight", -5, desc_y )
+			popup.scroll_bar:SetPoint( "Bottom",   popup.border_desc, "Bottom",    0, 20 )
+			popup.desc_scroll:Show()
+			popup.scroll_bar:Show()
 		end
 
 		popup.leader.set( event.leaderName )
@@ -611,6 +727,9 @@ function M.new()
 
 		local signups_count = { Total = 0 }
 		local classes_count = 0
+		-- Pre-group signups by className in a single O(n) pass.
+		-- The class render loop below then does O(1) lookup instead of O(n) per class.
+		local signups_by_class = {}
 		for _, v in pairs( event.signUps ) do
 			if v.className ~= "Tentative" and v.className ~= "Absence" and v.className ~= "Late" then
 				signups_count[ "Total" ] = signups_count[ "Total" ] + 1
@@ -619,6 +738,8 @@ function M.new()
 				end
 			end
 			signups_count[ v.className ] = signups_count[ v.className ] and signups_count[ v.className ] + 1 or 1
+			signups_by_class[ v.className ] = signups_by_class[ v.className ] or {}
+			table.insert( signups_by_class[ v.className ], v )
 		end
 
 		local extra = (signups_count[ "Tentative" ] and signups_count[ "Tentative" ] or 0) + (signups_count[ "Late" ] and signups_count[ "Late" ] or 0)
@@ -644,17 +765,16 @@ function M.new()
 			data[ current ].count = data[ current ].count + 1
 
 			local y = 17
-			for _, v in pairs( event.signUps ) do
-				if v.className == class.name then
-					local player_frame = create_player_frame( class_frame, v )
-					player_frame:SetPoint( "TopLeft", class_frame, "TopLeft", 0, -y )
+			-- O(1) lookup via pre-grouped table — was O(n) scan across all signups per class
+			for _, v in ipairs( signups_by_class[ class.name ] or {} ) do
+				local player_frame = create_player_frame( class_frame, v )
+				player_frame:SetPoint( "TopLeft", class_frame, "TopLeft", 0, -y )
 
-					y = y + 17
-					if y > data[ current ].max_y then data[ current ].max_y = y end
-					if m.db.user_settings.discord_id and m.db.user_settings.discord_id == v.userId then
-						signup_id = v.id
-						signup_class = class.name
-					end
+				y = y + 17
+				if y > data[ current ].max_y then data[ current ].max_y = y end
+				if m.db.user_settings.discord_id and m.db.user_settings.discord_id == v.userId then
+					signup_id = v.id
+					signup_class = class.name
 				end
 			end
 
@@ -701,7 +821,7 @@ function M.new()
 
 		if signup_id then
 			for _, v in buttons do
-				local btn = "btn_" .. string.gsub( string.lower( v ), "%s", "_" )
+				local btn = btn_keys[ v ]
 				popup[ btn ]:Enable()
 				popup[ btn ]:Show()
 			end
@@ -720,7 +840,7 @@ function M.new()
 			popup.dd_spec:Show()
 			for _, v in buttons do
 				if v ~= "Signup" then
-					local btn = "btn_" .. string.gsub( string.lower( v ), "%s", "_" )
+					local btn = btn_keys[ v ]
 					popup[ btn ]:Hide()
 				end
 			end
@@ -729,7 +849,7 @@ function M.new()
 		-- Event closed
 		if event.closingTime < now then
 			for _, v in buttons do
-				local btn = "btn_" .. string.gsub( string.lower( v ), "%s", "_" )
+				local btn = btn_keys[ v ]
 				popup[ btn ]:Disable()
 			end
 			popup.dd_class:Hide()
@@ -741,10 +861,26 @@ function M.new()
 		popup.btn_access:Hide()
 		local has_access = m.db.user_settings.channel_access[ event.channelId ]
 
+		-- Vérifier rôle raider si pas encore fait
+		if m.db.user_settings.has_raider_role == nil and not has_manager then
+			if m.msg and m.msg.check_raider_role then
+				m.msg.check_raider_role( m.db.user_settings.discord_id )
+			end
+		end
 		-- No access
-		if has_access == false then
+		if not can_signup then
+			-- Joueur sans rôle raider/manager : masquer les boutons signup
 			for _, v in buttons do
-				local btn = "btn_" .. string.gsub( string.lower( v ), "%s", "_" )
+				local btn = btn_keys[ v ]
+				popup[ btn ]:Hide()
+			end
+			popup.dd_class:Hide()
+			popup.dd_spec:Hide()
+			popup.label_noaccess:Show()
+			popup.label_noaccess:SetText( m.L and m.L( "ui.access_denied" ) or "You do not have access to signup for this event." )
+		elseif has_access == false then
+			for _, v in buttons do
+				local btn = btn_keys[ v ]
 				popup[ btn ]:Hide()
 			end
 			popup.dd_class:Hide()
@@ -759,9 +895,13 @@ function M.new()
 	end
 
 	local function show( event_id )
+		-- Ferme les autres popups secondaires
+		if m.close_all_popups then m.close_all_popups() end
+
 		if not popup then
 			popup = create_frame()
 		end
+		M.current_popup = popup
 
 		close_open_dropdowns()
 		popup:Show()
