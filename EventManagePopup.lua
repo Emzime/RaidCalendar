@@ -221,6 +221,29 @@ local function strip_tagged_links(description)
     return cleaned
 end
 
+
+local function build_sr_url(ev)
+    if not ev then return nil end
+    local sr_id = ev.srId
+    if sr_id and sr_id ~= "" then
+        return "https://raidres.top/res/" .. sr_id
+    end
+    return extract_tagged_link(ev.description or "", "SR")
+end
+
+local function build_rf_url(ev)
+    if not ev then return nil end
+    local rf_url = extract_tagged_link(ev.description or "", "RF")
+    if rf_url and rf_url ~= "" then
+        return rf_url
+    end
+    local sr_id = ev.srId
+    if sr_id and sr_id ~= "" then
+        return "https://raidres.top/api/events/" .. sr_id .. "/rollfor"
+    end
+    return nil
+end
+
 local function sep(parent, y)
     local l = parent:CreateTexture(nil, "ARTWORK")
     l:SetTexture("Interface\\Buttons\\WHITE8x8")
@@ -953,8 +976,8 @@ local function build()
         return t
     end
 
-    f.tab_raidres = make_tab("Raidres.top", TX)
-    f.tab_local = make_tab("In-Game", TX + TAB_W + 4)
+    f.tab_raidres = make_tab(T("event_manage.tab_raidres") or "Raidres.top", TX)
+    f.tab_local = make_tab(T("event_manage.tab_local") or "In-Game", TX + TAB_W + 4)
 
     f.tab_raidres:SetScript("OnClick", function()
         if mode == "raidres" then return end
@@ -1127,12 +1150,12 @@ local function build()
     lbl(f, T("event_manage.label_description"), 12, -190)
 
     -- Boîtes SR/RF copiables (mode edit uniquement)
-    f.lbl_sr_edit = lbl(f, "SR :", 12, -206)
+    f.lbl_sr_edit = lbl(f, T("event_manage.sr_label") or "SR :", 12, -206)
     f.lbl_sr_edit:SetTextColor(1, 0.82, 0, 1)
     f.lbl_sr_edit:Hide()
     f.sr_edit_box = make_link_box_em(f, -206)
 
-    f.lbl_rf_edit = lbl(f, "RF :", 12, -226)
+    f.lbl_rf_edit = lbl(f, T("event_manage.rf_label") or "RF :", 12, -226)
     f.lbl_rf_edit:SetTextColor(1, 0.82, 0, 1)
     f.lbl_rf_edit:Hide()
     f.rf_edit_box = make_link_box_em(f, -226)
@@ -1620,13 +1643,14 @@ function M.show_edit(event_id)
     set_template_value(tostring(ev.templateId or "3"))
     if popup.dd_limit then local v = ev.limit or 25; popup.dd_limit.selected = v; popup.dd_limit:SetText(tostring(v)) end
     if popup.dd_sr_limit then local v = ev.reservationLimit or 1; popup.dd_sr_limit.selected = v; popup.dd_sr_limit:SetText(tostring(v)) end
-    -- Extraire et stocker les urls SR/RF pour les ré-injecter au save
-    local sr_url_edit = extract_tagged_link(ev.description or "", "SR")
-    local rf_url_edit = extract_tagged_link(ev.description or "", "RF")
+    -- Conserver le lien SR copiables, mais afficher le contenu RF (comme la gestion de groupe)
+    local sr_url_edit = build_sr_url(ev)
+    local rf_url_edit = build_rf_url(ev)
     if popup.sr_edit_box then popup.sr_edit_box:SetText(sr_url_edit or "") end
-    if popup.rf_edit_box then popup.rf_edit_box:SetText(rf_url_edit or "") end
+    if popup.rf_edit_box then popup.rf_edit_box:SetText(rf_url_edit and "..." or "") end
     popup._edit_sr_url = sr_url_edit
     popup._edit_rf_url = rf_url_edit
+    popup._edit_rf_event_id = event_id
     popup.btn_submit:SetText(string.format("|cffFFD000%s|r", T("actions.save")))
     popup.btn_submit:Disable()
     popup.btn_delete:Show()
@@ -1638,6 +1662,10 @@ function M.show_edit(event_id)
     set_status(T("event_manage.checking_permissions"), {1, 0.82, 0})
     apply_saved_or_default_position(popup, source_pos)
     popup:Show()
+
+    if rf_url_edit and rf_url_edit ~= "" and m.msg and m.msg.rf_data_request then
+        m.msg.rf_data_request(rf_url_edit)
+    end
 
     if m.RaidTracker and m.RaidTracker.check_raid_role then
         m.RaidTracker.check_raid_role()
@@ -1724,6 +1752,18 @@ function M.toggle_create()
         M.hide()
     else
         M.show_create()
+    end
+end
+
+
+function M.on_rf_data_result(success, rf_data, status)
+    if not popup or not popup.rf_edit_box then return end
+    if mode ~= "edit" then return end
+    if not popup:IsShown() then return end
+    if success and rf_data and rf_data ~= "" then
+        popup.rf_edit_box:SetText(rf_data)
+    else
+        popup.rf_edit_box:SetText(status or "Error")
     end
 end
 

@@ -10,6 +10,8 @@ if m.RaidTrackerUI then return end
 local M = {}
 local f = nil  -- frame principale
 
+local function T(key) return m.L(key) or key end
+
 -- ============================================================
 --  CRATION DU FRAME
 -- ============================================================
@@ -61,7 +63,7 @@ local function create_frame()
     -- Nom du raid
     local lbl_raid = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     lbl_raid:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -42)
-    lbl_raid:SetText("|cffAAAAAARaid :|r")
+    lbl_raid:SetText("|cffAAAAAA" .. T("raidtracker.label_raid") .. "|r")
 
     local inp_raid = CreateFrame("EditBox", "RCRT_RaidName", frame, "InputBoxTemplate")
     inp_raid:SetWidth(175)
@@ -76,7 +78,7 @@ local function create_frame()
     -- Channel Discord
     local lbl_ch = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     lbl_ch:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -64)
-    lbl_ch:SetText("|cffAAAAFF#Channel:|r")
+    lbl_ch:SetText("|cffAAAAFF" .. T("raidtracker.label_channel") .. "|r")
 
     local inp_ch = CreateFrame("EditBox", "RCRT_ChannelId", frame, "InputBoxTemplate")
     inp_ch:SetWidth(175)
@@ -91,7 +93,7 @@ local function create_frame()
     -- Boss courant
     local lbl_boss = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     lbl_boss:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -86)
-    lbl_boss:SetText("|cffFF9944Boss  :|r")
+    lbl_boss:SetText("|cffFF9944" .. T("raidtracker.label_boss") .. "|r")
 
     local inp_boss = CreateFrame("EditBox", "RCRT_BossName", frame, "InputBoxTemplate")
     inp_boss:SetWidth(175)
@@ -106,12 +108,12 @@ local function create_frame()
     -- Barre de statut
     local lbl_status = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     lbl_status:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -117)
-    lbl_status:SetText("|cffFF4444* Session inactive|r")
+    lbl_status:SetText("|cffFF4444" .. T("raidtracker.status_inactive") .. "|r")
     frame.lbl_status = lbl_status
 
     local lbl_perm = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     lbl_perm:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -16, -117)
-    lbl_perm:SetText("|cffFF4444X Non autoris|r")
+    lbl_perm:SetText("|cffFF4444" .. T("raidtracker.perm_denied") .. "|r")
     frame.lbl_perm = lbl_perm
 
     -- -- Boutons de contrle --------------------------------
@@ -127,8 +129,8 @@ local function create_frame()
     end
 
     -- Ligne 1: Start / Stop
-    local btn_start = make_btn("|cff00DD00> Dmarrer|r",  16, -136)
-    local btn_end   = make_btn("|cffFF4444[X] Terminer|r",  155, -136)
+    local btn_start = make_btn("|cff00DD00" .. T("raidtracker.btn_start") .. "|r",  16, -136)
+    local btn_end   = make_btn("|cffFF4444" .. T("raidtracker.btn_end") .. "|r",  155, -136)
     frame.btn_start = btn_start
     frame.btn_end   = btn_end
 
@@ -139,8 +141,8 @@ local function create_frame()
     frame.btn_wipe  = btn_wipe
 
     -- Ligne 3: Pause / Rsum
-    local btn_pause   = make_btn("|cffAAAAAA|| Pause/Resume|r", 16,  -200)
-    local btn_summary = make_btn("|cff88BBFF Rsum|r",      155, -200)
+    local btn_pause   = make_btn("|cffAAAAAA" .. T("raidtracker.btn_pause") .. "|r", 16,  -200)
+    local btn_summary = make_btn("|cff88BBFF" .. T("raidtracker.btn_summary") .. "|r",      155, -200)
     frame.btn_pause   = btn_pause
     frame.btn_summary = btn_summary
 
@@ -151,7 +153,7 @@ local function create_frame()
     lbl_stats:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, -240)
     lbl_stats:SetWidth(270)
     lbl_stats:SetJustifyH("LEFT")
-    lbl_stats:SetText("Kills: 0  Wipes: 0  Loots: 0")
+    lbl_stats:SetText(string.format(T("raidtracker.stats_format"), 0, 0, 0))
     frame.lbl_stats = lbl_stats
 
     -- Mini liste des kills rcents
@@ -225,7 +227,7 @@ local function create_frame()
         local boss = self:GetText()
         if boss ~= "" then
             m.RaidTracker.set_pull(boss)
-            m.info("|cffFF9944Pull :|r Timer dmarr pour " .. boss)
+            m.info("|cffFF9944" .. T("raidtracker.pull_started") .. boss .. "|r")
         end
         self:ClearFocus()
     end)
@@ -281,12 +283,12 @@ function M.update()
             "|cff00FF00* %s (%dh%02dm)|r", state.raidName, h, mins
         ))
     else
-        f.lbl_status:SetText("|cffFF4444* Session inactive|r")
+        f.lbl_status:SetText("|cffFF4444" .. T("raidtracker.status_inactive") .. "|r")
     end
 
     -- Statistiques
     f.lbl_stats:SetText(string.format(
-        "|cffFFD700Kills: %d|r   |cffFF5555Wipes: %d|r   |cffa335eeLoots: %d|r",
+        "|cffFFD700" .. T("raidtracker.stats_format") .. "|r",
         table.getn(state).kills, state.wipes, table.getn(state).loots
     ))
 
@@ -307,9 +309,9 @@ function M.update()
 
     -- Etat pause
     if state.paused then
-        f.btn_pause:SetText("|cff00FF00> Reprendre|r")
+        f.btn_pause:SetText("|cff00FF00" .. T("raidtracker.btn_resume") .. "|r")
     else
-        f.btn_pause:SetText("|cffAAAAAA|| Pause/Resume|r")
+        f.btn_pause:SetText("|cffAAAAAA" .. T("raidtracker.btn_pause") .. "|r")
     end
 end
 
@@ -317,9 +319,9 @@ end
 function M.update_permission(has_perm)
     if not f then return end
     if has_perm then
-        f.lbl_perm:SetText("|cff00FF00OK Autoris|r")
+        f.lbl_perm:SetText("|cff00FF00" .. T("raidtracker.perm_granted") .. "|r")
     else
-        f.lbl_perm:SetText("|cffFF4444X Non autoris|r")
+        f.lbl_perm:SetText("|cffFF4444" .. T("raidtracker.perm_denied") .. "|r")
     end
 end
 

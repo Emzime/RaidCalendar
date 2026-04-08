@@ -1040,6 +1040,9 @@ function M.new()
 			if m.GroupPopup and m.GroupPopup.on_rf_data_result then
 				m.GroupPopup.on_rf_data_result( data.success == true, data.rfData, data.status )
 			end
+			if m.EventManagePopup and m.EventManagePopup.on_rf_data_result then
+				m.EventManagePopup.on_rf_data_result( data.success == true, data.rfData, data.status )
+			end
 		end
 	elseif command == MessageCommand.CreateEventResult then
 		--
@@ -1207,6 +1210,10 @@ function M.new()
 		if data.player == m.player then
 			if m.db then
 				m.db.user_settings.has_member_role = data.success == true
+				-- Rafraîchir LocalEventPopup si ouvert
+				if m.LocalEventPopup and m.LocalEventPopup.refresh_current then
+					m.LocalEventPopup.refresh_current()
+				end
 				m.db.user_settings.role_check_debug = {
 					character = data.character,
 					linked_user_id = data.linkedUserId,
@@ -1218,6 +1225,20 @@ function M.new()
 				m.EventManagePopup.on_member_role_result( data.success == true, data.status, data.linkedUserId, data.requestedUserId, data.character )
 			end
 		end
+	elseif command == MessageCommand.RaiderRoleResult then
+		--
+		-- RAIDER_ROLE_RESULT — rôle inscription events Raid-Helper
+		--
+		if data.player == m.player then
+			if m.db then
+				m.db.user_settings.has_raider_role = data.success == true
+			end
+			-- Rafraîchir EventPopup si ouvert
+			if m.EventPopup and m.EventPopup.refresh_current then
+				m.EventPopup.refresh_current()
+			end
+		end
+
 	elseif command == MessageCommand.RaidRoleResult then
 		--
 		-- RAID_ROLE_RESULT

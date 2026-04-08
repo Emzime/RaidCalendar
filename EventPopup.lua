@@ -411,7 +411,7 @@ function M.new()
 		frame.sr_label = border_desc:CreateFontString( nil, "ARTWORK", "GameFontNormalSmall" )
 		frame.sr_label:SetPoint( "TopLeft", border_desc, "TopLeft", 8, -10 )
 		frame.sr_label:SetTextColor( 1, 0.82, 0, 1 )  -- or
-		frame.sr_label:SetText( "SR :" )
+		frame.sr_label:SetText( (m.L and m.L( "ui.sr_link" )) or "SR :" )
 		frame.sr_label:Hide()
 
 		local function make_link_box( parent, y )
@@ -631,8 +631,9 @@ function M.new()
 
 		local is_leader    = event.leaderId == m.db.user_settings.discord_id or m.debug_enabled
 		local has_manager  = m.db.user_settings.has_manager_role == true
-		local has_raider   = m.db.user_settings.has_raider_role == true
-		local can_signup   = has_raider or has_manager
+		local has_raider   = m.db.user_settings.has_raider_role  -- nil = pas encore vérifié
+		local can_signup   = has_raider == true or has_manager
+		local raider_pending = has_raider == nil and not has_manager
 		if is_leader or has_manager then
 			popup.btn_invite:Show()
 			popup.btn_invite:Enable()
@@ -861,15 +862,19 @@ function M.new()
 		popup.btn_access:Hide()
 		local has_access = m.db.user_settings.channel_access[ event.channelId ]
 
-		-- Vérifier rôle raider si pas encore fait
-		if m.db.user_settings.has_raider_role == nil and not has_manager then
+		-- Déclencher vérification raider si pas encore fait
+		if raider_pending then
 			if m.msg and m.msg.check_raider_role then
 				m.msg.check_raider_role( m.db.user_settings.discord_id )
 			end
 		end
 		-- No access
-		if not can_signup then
-			-- Joueur sans rôle raider/manager : masquer les boutons signup
+		if raider_pending then
+			-- Vérification en cours : afficher message d'attente
+			popup.label_noaccess:Show()
+			popup.label_noaccess:SetText( m.L and m.L( "ui.checking_access" ) or "Checking access..." )
+		elseif not can_signup then
+			-- Rôle insuffisant : masquer les boutons
 			for _, v in buttons do
 				local btn = btn_keys[ v ]
 				popup[ btn ]:Hide()
