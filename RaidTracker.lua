@@ -309,7 +309,7 @@ function M.set_pull(boss_name)
         state.currentBoss = boss_name
     end
     state.pullTime = time()
-    m.debug("Timer de pull dmarr : " .. (state.currentBoss or "?"))
+    m.debug("Pull timer started: " .. (state.currentBoss or "?"))
 end
 
 --- Bascule PAUSE / RESUME

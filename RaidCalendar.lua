@@ -259,7 +259,7 @@ function RaidCalendar.events:ADDON_LOADED()
 		end
 
 		if args == "clear" then
-			m.info( "All events have been removed" )
+			m.info( m.L( "ui.events_cleared" ) or "All events have been removed." )
 			m.db.events = {}
 			return
 		end
