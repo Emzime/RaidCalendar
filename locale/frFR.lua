@@ -131,7 +131,10 @@ m.register_locale("frFR", {
 		bot_name_unknown = "Nom du bot inconnu. Reconnectez-vous (/rc).",
 		sr_link = "SR :",
 		raid_session_ended = "Session de raid terminée.",
-		cleanup_done = "Nettoyage des anciens évènements locaux effectué."
+		cleanup_done = "Nettoyage des anciens évènements locaux effectué.",
+		rollfor_required = "RollFor v4.8.1 ou version plus récente est requis.",
+		rollfor_export = "Exporter vers RollFor",
+		events_cleared = "Tous les évènements ont été supprimés."
 	},
 	common = {
 		required = "obligatoire",
@@ -214,7 +217,11 @@ m.register_locale("frFR", {
 		link_character = "Personnage :",
 		link_bot = "Discord lie cote bot :",
 		link_addon = "Discord saisi addon :",
-		none = "aucun"
+		none = "aucun",
+		sr_label = "SR :",
+		rf_label = "RF :",
+		tab_raidres = "Raidres.top",
+		tab_local = "En jeu"
 	},
 	classes = {
 		Druid = "Druide", Hunter = "Chasseur", Mage = "Mage", Paladin = "Paladin", Priest = "Pretre",
@@ -260,9 +267,8 @@ m.register_locale("frFR", {
 		rh_label             = "Raid-Helper :",
 		rf_label             = "RollFor :",
 		web_label            = "Groupe :",
-		status_last_sync     = " Dernière synchro : %s à %s.",
+		status_last_sync     = " Dernière synchro : %s à %s."
 	},
-
 	raidtracker = {
 		discord_not_auth       = "Discord non configuré. Utilisez /rc pour vous connecter.",
 		no_channel             = "Aucun salon Discord configuré pour les notifications.",
@@ -271,5 +277,22 @@ m.register_locale("frFR", {
 		no_active_session      = "Aucune session de raid active.",
 		enter_channel_id       = "Entrez l'ID du salon Discord.",
 		enter_boss_name        = "Entrez le nom du boss.",
+		label_raid             = "Raid :",
+		label_channel          = "#Salon :",
+		label_boss             = "Boss :",
+		status_inactive        = "* Session inactive",
+		status_active          = "* %s (%dh%02dm)",
+		perm_granted           = "OK Autorisé",
+		perm_denied            = "X Non autorisé",
+		btn_start              = "> Démarrer",
+		btn_end                = "[X] Terminer",
+		btn_kill               = "Kill",
+		btn_wipe               = "Wipe",
+		btn_pause              = "|| Pause",
+		btn_resume             = "> Reprendre",
+		btn_summary            = "Résumé",
+		stats_format           = "Kills : %d   Wipes : %d   Loots : %d",
+		pull_started           = "Pull : Timer démarré pour ",
+		error_prefix           = "RL : "
 	},
 })

@@ -739,7 +739,7 @@ update_group_thread_ui = function()
 			popup.lbl_raid_info:SetText(txt)
 			popup.lbl_raid_info:SetTextColor(0.85, 0.85, 0.85, 1)
 		else
-			popup.lbl_raid_info:SetText("RL: " .. (T("group_popup.raid_lead_unknown") or "not set"))
+			popup.lbl_raid_info:SetText((T("group_popup.raid_lead") or "RL") .. ": " .. (T("group_popup.raid_lead_unknown") or "not set"))
 			popup.lbl_raid_info:SetTextColor(0.55, 0.55, 0.55, 1)
 		end
 	end
@@ -1002,7 +1002,7 @@ function M.on_rf_data_result( success, rf_data, status )
 	if success and rf_data and rf_data ~= "" then
 		popup.rf_box:SetText(rf_data)
 	else
-		popup.rf_box:SetText(status or "Error")
+		popup.rf_box:SetText(status or T("event_manage.status_failed") or "Error")
 	end
 end
 

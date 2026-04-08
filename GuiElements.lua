@@ -841,7 +841,12 @@ function M.pfui_skin( frame )
 			m.api.pfUI.api.SkinButton( frame[ btn ] )
 		end
 
-		frame.btn_invite:SetPoint( "Right", frame.titlebar.btn_close, "Left", -4, 0 )
+		-- Ordre titlebar pfUI (droite → gauche) : X | BotStatus | SR | E | G | I
+		if frame.btn_sr     then safe( m.api.pfUI.api.SkinButton, frame.btn_sr ) end
+		if frame.btn_manage then safe( m.api.pfUI.api.SkinButton, frame.btn_manage ) end
+		if frame.btn_groups then safe( m.api.pfUI.api.SkinButton, frame.btn_groups ) end
+		if frame.btn_invite then safe( m.api.pfUI.api.SkinButton, frame.btn_invite ) end
+		-- Les anchors sont déjà corrects depuis EventPopup.lua (recréés avant pfUI_skin)
 
 		m.api.pfUI.api.SkinButton( frame.cs_change )
 		m.api.pfUI.api.SkinButton( frame.cs_cancel )

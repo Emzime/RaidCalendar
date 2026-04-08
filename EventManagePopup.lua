@@ -221,6 +221,29 @@ local function strip_tagged_links(description)
     return cleaned
 end
 
+
+local function build_sr_url(ev)
+    if not ev then return nil end
+    local sr_id = ev.srId
+    if sr_id and sr_id ~= "" then
+        return "https://raidres.top/res/" .. sr_id
+    end
+    return extract_tagged_link(ev.description or "", "SR")
+end
+
+local function build_rf_url(ev)
+    if not ev then return nil end
+    local rf_url = extract_tagged_link(ev.description or "", "RF")
+    if rf_url and rf_url ~= "" then
+        return rf_url
+    end
+    local sr_id = ev.srId
+    if sr_id and sr_id ~= "" then
+        return "https://raidres.top/api/events/" .. sr_id .. "/rollfor"
+    end
+    return nil
+end
+
 local function sep(parent, y)
     local l = parent:CreateTexture(nil, "ARTWORK")
     l:SetTexture("Interface\\Buttons\\WHITE8x8")
@@ -761,6 +784,19 @@ local function build_raid_items()
     return items
 end
 
+-- Retrouve la valeur numérique (raidId) correspondant à un nom de raid dans RAID_LIST
+local function find_raid_id_by_title(title)
+    if not title or title == "" then return nil end
+    local i
+    for i = 1, table.getn(RAID_LIST) do
+        local item = RAID_LIST[i]
+        if not item.is_header and item.text == title then
+            return item.value
+        end
+    end
+    return nil
+end
+
 local function build_template_items()
     return {
         { value = "1", text = "1 - Generic" },
@@ -953,8 +989,8 @@ local function build()
         return t
     end
 
-    f.tab_raidres = make_tab("Raidres.top", TX)
-    f.tab_local = make_tab("In-Game", TX + TAB_W + 4)
+    f.tab_raidres = make_tab(T("event_manage.tab_raidres") or "Raidres.top", TX)
+    f.tab_local = make_tab(T("event_manage.tab_local") or "In-Game", TX + TAB_W + 4)
 
     f.tab_raidres:SetScript("OnClick", function()
         if mode == "raidres" then return end
@@ -1127,12 +1163,12 @@ local function build()
     lbl(f, T("event_manage.label_description"), 12, -190)
 
     -- Boîtes SR/RF copiables (mode edit uniquement)
-    f.lbl_sr_edit = lbl(f, "SR :", 12, -206)
+    f.lbl_sr_edit = lbl(f, T("event_manage.sr_label") or "SR :", 12, -206)
     f.lbl_sr_edit:SetTextColor(1, 0.82, 0, 1)
     f.lbl_sr_edit:Hide()
     f.sr_edit_box = make_link_box_em(f, -206)
 
-    f.lbl_rf_edit = lbl(f, "RF :", 12, -226)
+    f.lbl_rf_edit = lbl(f, T("event_manage.rf_label") or "RF :", 12, -226)
     f.lbl_rf_edit:SetTextColor(1, 0.82, 0, 1)
     f.lbl_rf_edit:Hide()
     f.rf_edit_box = make_link_box_em(f, -226)
@@ -1254,17 +1290,18 @@ function M._configure_fields()
     local is_edit_rr = (mode == "edit")
     local is_rr_mode = (mode == "raidres")
 
-    -- Dropdown raid : visible uniquement en mode raidres
+    -- Dropdown raid : visible en mode raidres ET edit
+    local use_dd = is_rr_mode or is_edit_rr
     if popup.dd_title then
-        if is_rr_mode then popup.dd_title:Show() else popup.dd_title:Hide() end
+        if use_dd then popup.dd_title:Show() else popup.dd_title:Hide() end
     end
-    -- Champ texte titre : visible en mode local/edit
+    -- Champ texte titre : visible en mode local uniquement
     if popup.inp_title then
-        if is_rr_mode then popup.inp_title:Hide() else popup.inp_title:Show() end
+        if use_dd then popup.inp_title:Hide() else popup.inp_title:Show() end
     end
     -- Label du champ titre
     if popup.lbl_title_field then
-        if is_rr_mode then
+        if use_dd then
             popup.lbl_title_field:SetText(T("event_manage.label_raid") or "Raid")
         else
             popup.lbl_title_field:SetText(T("event_manage.label_title") or "Title")
@@ -1297,21 +1334,18 @@ function M._configure_fields()
         popup.sep_mid:SetPoint("TOPRIGHT", popup.sep_mid:GetParent(), "TOPRIGHT", -12, sep_y)
     end
 
-    -- Boîtes SR/RF en mode edit
+    -- Boîte SR en mode edit (RF supprimé)
     if popup.lbl_sr_edit then
         if is_edit_rr then popup.lbl_sr_edit:Show() else popup.lbl_sr_edit:Hide() end
     end
     if popup.sr_edit_box then
         if is_edit_rr then popup.sr_edit_box:Show() else popup.sr_edit_box:Hide() end
     end
-    if popup.lbl_rf_edit then
-        if is_edit_rr then popup.lbl_rf_edit:Show() else popup.lbl_rf_edit:Hide() end
-    end
-    if popup.rf_edit_box then
-        if is_edit_rr then popup.rf_edit_box:Show() else popup.rf_edit_box:Hide() end
-    end
+    -- RF toujours masqué en édition
+    if popup.lbl_rf_edit then popup.lbl_rf_edit:Hide() end
+    if popup.rf_edit_box  then popup.rf_edit_box:Hide()  end
     -- Repositionner desc_bg + éléments inférieurs selon mode
-    local dy = is_edit_rr and 44 or 0
+    local dy = is_edit_rr and 22 or 0
     if popup.desc_bg then
         popup.desc_bg:ClearAllPoints()
         local desc_top_y = -206 - dy
@@ -1369,8 +1403,17 @@ function M.on_submit()
     end
 
     local title
-    if mode == "raidres" and popup.dd_title and popup.dd_title.selected then
-        title = popup.dd_title.selected
+    if (mode == "raidres" or mode == "edit") and popup.dd_title and popup.dd_title.selected then
+        -- Retrouver le nom textuel du raid depuis la valeur numérique
+        local items = popup.dd_title.items or {}
+        title = tostring(popup.dd_title.selected)  -- fallback sur la valeur brute
+        local k
+        for k = 1, table.getn(items) do
+            if items[k].value and items[k].value == popup.dd_title.selected then
+                title = items[k].text or title
+                break
+            end
+        end
     elseif popup.inp_title then
         title = popup.inp_title:GetText()
     else
@@ -1614,19 +1657,18 @@ function M.show_edit(event_id)
     has_perm = false
 
     popup.titlebar.title:SetText(T("event_manage.edit_title_remote"))
-    popup.inp_title:SetText(ev.title or "")
+    -- Pré-sélectionner le raid dans le dropdown (recherche par raidId puis par nom)
+    local raid_id_edit = ev.raidId or find_raid_id_by_title(ev.title)
+    ensure_dropdown_value(popup.dd_title, raid_id_edit)
     fill_datetime(ev.startTime or time(), false)
     popup.inp_desc:SetText(strip_tagged_links(ev.description or "") or "")
     set_template_value(tostring(ev.templateId or "3"))
     if popup.dd_limit then local v = ev.limit or 25; popup.dd_limit.selected = v; popup.dd_limit:SetText(tostring(v)) end
     if popup.dd_sr_limit then local v = ev.reservationLimit or 1; popup.dd_sr_limit.selected = v; popup.dd_sr_limit:SetText(tostring(v)) end
-    -- Extraire et stocker les urls SR/RF pour les ré-injecter au save
-    local sr_url_edit = extract_tagged_link(ev.description or "", "SR")
-    local rf_url_edit = extract_tagged_link(ev.description or "", "RF")
+    -- Lien SR copiable uniquement (RF supprimé de l'édition)
+    local sr_url_edit = build_sr_url(ev)
     if popup.sr_edit_box then popup.sr_edit_box:SetText(sr_url_edit or "") end
-    if popup.rf_edit_box then popup.rf_edit_box:SetText(rf_url_edit or "") end
     popup._edit_sr_url = sr_url_edit
-    popup._edit_rf_url = rf_url_edit
     popup.btn_submit:SetText(string.format("|cffFFD000%s|r", T("actions.save")))
     popup.btn_submit:Disable()
     popup.btn_delete:Show()
@@ -1724,6 +1766,18 @@ function M.toggle_create()
         M.hide()
     else
         M.show_create()
+    end
+end
+
+
+function M.on_rf_data_result(success, rf_data, status)
+    if not popup or not popup.rf_edit_box then return end
+    if mode ~= "edit" then return end
+    if not popup:IsShown() then return end
+    if success and rf_data and rf_data ~= "" then
+        popup.rf_edit_box:SetText(rf_data)
+    else
+        popup.rf_edit_box:SetText(status or "Error")
     end
 end
 

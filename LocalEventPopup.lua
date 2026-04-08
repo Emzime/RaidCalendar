@@ -932,12 +932,13 @@ local function refresh(event_id)
             popup[active_btn]:Disable()
         end
     else
-        -- Vérifier le rôle member/raider/manager pour s'inscrire
-        local has_manager = m.db and m.db.user_settings and m.db.user_settings.has_manager_role == true
-        local has_raider  = m.db and m.db.user_settings and m.db.user_settings.has_raider_role == true
-        local has_member  = m.db and m.db.user_settings and m.db.user_settings.has_member_role == true
-        local can_signup  = has_member or has_raider or has_manager
-        if can_signup then
+        -- Vérifier le rôle : nil = pas encore connu (autoriser), false = refusé
+        local has_manager = m.db and m.db.user_settings and m.db.user_settings.has_manager_role
+        local has_raider  = m.db and m.db.user_settings and m.db.user_settings.has_raider_role
+        local has_member  = m.db and m.db.user_settings and m.db.user_settings.has_member_role
+        -- Refusé seulement si TOUS les rôles sont explicitement false
+        local denied = has_member == false and has_raider == false and has_manager == false
+        if not denied then
             apply_signup_popup_layout("signup")
             popup.btn_signup:Show()
             popup.btn_signup:Enable()

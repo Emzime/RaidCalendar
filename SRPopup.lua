@@ -132,7 +132,7 @@ function M.new()
 		if RollFor.key_bindings then
 			RollFor.key_bindings.import( rollfor_data )
 		else
-			m.info( "RollFor v4.8.1 or higher is required." )
+			m.info( m.L( "ui.rollfor_required" ) or "RollFor v4.8.1 or higher is required." )
 		end
 	end
 
@@ -644,7 +644,7 @@ function M.new()
 
 		---@diagnostic disable-next-line: undefined-global
 		if RollFor then
-			frame.btn_export = m.GuiElements.tiny_button( frame, "E", "Export to RollFor", "#209FF9" )
+			frame.btn_export = m.GuiElements.tiny_button( frame, "E", m.L( "ui.rollfor_export" ) or "Export to RollFor", "#209FF9" )
 			frame.btn_export:SetPoint( "Right", frame.btn_refresh, "Left", 2, 0 )
 			frame.btn_export:SetScript( "OnClick", export_to_rollfor )
 		end
@@ -929,9 +929,24 @@ function M.new()
 		end
 
 		popup.yoursr:SetText( m.L( "ui.your_reservations", { count = sr_count, limit = sr_limit } ) )
-		if m.db.user_settings.sr_specName then
-			popup.dd_spec:SetSelected( m.db.user_settings.sr_specName )
+
+		-- Pré-sélectionner la spé depuis l'inscription de l'event (priorité sur sr_specName sauvegardé)
+		local spec_preselect = nil
+		local ev_signup_data = m.db.events and m.db.events[ event_id ]
+		if ev_signup_data and ev_signup_data.signUps and m.db.user_settings.discord_id then
+			local _, su_idx = m.find( m.db.user_settings.discord_id, ev_signup_data.signUps, "userId" )
+			if su_idx then
+				local raw_spec = ev_signup_data.signUps[ su_idx ].specName or ""
+				if raw_spec ~= "" then
+					-- Extraire la partie spec si format composé "ClasseSpec" → "Spec"
+					local second_upper = string.find( raw_spec, "%u", 2 )
+					spec_preselect = ( second_upper and second_upper > 1 ) and string.sub( raw_spec, second_upper ) or raw_spec
+				end
+			end
 		end
+		-- Fallback sur la spé manuellement sauvegardée
+		if not spec_preselect then spec_preselect = m.db.user_settings.sr_specName end
+		if spec_preselect then popup.dd_spec:SetSelected( spec_preselect ) end
 
 		popup.dd_sr1:SetText( m.L( "ui.reserve_item" ) )
 		popup.dd_sr2:SetText( m.L( "ui.reserve_item" ) )
