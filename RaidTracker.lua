@@ -365,10 +365,7 @@ function M.on_role_result(has_perm, status_msg, linked_user_id, requested_user_i
     -- Persister dans les settings pour que EventPopup puisse l'utiliser
     if m.db and m.db.user_settings then
         m.db.user_settings.has_manager_role = has_perm
-		-- Aussi vérifier le rôle raider au même moment
-		if m.msg and m.msg.check_raider_role then
-			m.msg.check_raider_role( m.db.user_settings.discord_id )
-		end
+
     end
     -- Nettoyage automatique des anciens evenements locaux si manager
     if has_perm and m.LocalEventManager then
@@ -432,6 +429,14 @@ end
 function M.request_role_check()
     if m.db and m.db.user_settings and m.db.user_settings.discord_id then
         M.check_raid_role()
+        -- Vérifier aussi le rôle raider indépendamment
+        if m.msg and m.msg.check_raider_role then
+            m.msg.check_raider_role( m.db.user_settings.discord_id )
+        end
+        -- Vérifier le rôle member (in-game events)
+        if m.msg and m.msg.check_member_role then
+            m.msg.check_member_role( m.db.user_settings.discord_id )
+        end
     end
 end
 
