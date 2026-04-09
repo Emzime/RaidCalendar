@@ -36,7 +36,7 @@ m.register_locale("frFR", {
 		time_format_24 = "24 heures",
 		time_format_12 = "12 heures",
 		language_enUS = "Anglais",
-		language_frFR = "Francais"
+		language_frFR = "Francais",
 		language_deDE = "Allemand",
 		language_esES = "Espagnol",
 		language_itIT = "Italien",
@@ -51,7 +51,7 @@ m.register_locale("frFR", {
 		language_fiFI = "Finnois",
 		language_csCZ = "Tchèque",
 		language_huHU = "Hongrois",
-		language_roRO = "Roumain",
+		language_roRO = "Roumain"
 	},
 	time = {
 		in_days_one = "dans {count} jour",

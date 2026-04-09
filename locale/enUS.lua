@@ -36,7 +36,7 @@ m.register_locale("enUS", {
 		time_format_24 = "24-hour",
 		time_format_12 = "12-hour",
 		language_enUS = "English",
-		language_frFR = "French"
+		language_frFR = "French",
 		language_deDE = "German",
 		language_esES = "Spanish",
 		language_itIT = "Italian",
@@ -51,7 +51,7 @@ m.register_locale("enUS", {
 		language_fiFI = "Finnish",
 		language_csCZ = "Czech",
 		language_huHU = "Hungarian",
-		language_roRO = "Romanian",
+		language_roRO = "Romanian"
 	},
 	time = {
 		in_days_one = "in {count} day",
