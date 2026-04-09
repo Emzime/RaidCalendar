@@ -1163,7 +1163,11 @@ local function build()
     lbl(f, T("event_manage.label_description"), 12, -190)
 
     -- Boîtes SR/RF copiables (mode edit uniquement)
+<<<<<<< Updated upstream
     f.lbl_sr_edit = lbl(f, T("event_manage.sr_label") or "SR :", 12, -206)
+=======
+    f.lbl_sr_edit = lbl(f, T("ui.sr_link") or "SR:", 12, -206)
+>>>>>>> Stashed changes
     f.lbl_sr_edit:SetTextColor(1, 0.82, 0, 1)
     f.lbl_sr_edit:Hide()
     f.sr_edit_box = make_link_box_em(f, -206)

@@ -57,6 +57,10 @@ function RaidCalendar.events:ADDON_LOADED()
 	m.db.user_settings.ui_theme = m.db.user_settings.ui_theme or "Blizzard"
 	-- Toujours utiliser le nom du personnage (case a cocher supprimee, option forcee)
 	m.db.user_settings.use_character_name = 1
+	m.db.user_settings.show_raid_reset_icons = m.db.user_settings.show_raid_reset_icons
+	if m.db.user_settings.show_raid_reset_icons == nil then
+		m.db.user_settings.show_raid_reset_icons = 1
+	end
 
 	m.time_format = m.db.user_settings.time_format == "24" and "%H:%M" or "%I:%M %p"
 
@@ -67,11 +71,7 @@ function RaidCalendar.events:ADDON_LOADED()
 			selected_locale = ( GetLocale and GetLocale() ) or "enUS"
 		end
 
-		if selected_locale ~= "enUS" and selected_locale ~= "frFR" then
-			selected_locale = "enUS"
-		end
-
-		m.set_locale( selected_locale )
+		selected_locale = m.set_locale( selected_locale )
 		m.db.user_settings.locale_flag = selected_locale
 	end
 

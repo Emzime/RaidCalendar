@@ -544,7 +544,8 @@ local function create_frame()
         frame:SetPoint(p.point, UIParent, p.relative_point, p.x, p.y)
     end
 
-    frame.btn_manage = m.GuiElements.tiny_button(frame, "E", T("ui.manage_event") or "Manage event", "#1565c0")
+    frame.btn_manage = m.GuiElements.tiny_button(frame, "E", nil, "#1565c0")
+    frame.btn_manage.tooltip_key = "ui.manage_event"
     frame.btn_manage:SetPoint("Right", frame.titlebar.btn_close, "Left", -4, 0)
     frame.btn_manage:SetScript("OnClick", function()
         if event and m.EventManagePopup then

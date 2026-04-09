@@ -370,7 +370,12 @@ function M.new()
 		frame.online_indicator = gui.create_online_indicator( frame, frame.titlebar.btn_close )
 
 		-- Bouton SR : à gauche du statut bot (visible uniquement si inscrit)
+<<<<<<< Updated upstream
 		frame.btn_sr = m.GuiElements.tiny_button( frame, "SR", m.L( "actions.reserve" ) or "Reserve", "#b8860b" )
+=======
+		frame.btn_sr = m.GuiElements.tiny_button( frame, "SR", nil, "#b8860b" )
+		frame.btn_sr.tooltip_key = "actions.reserve"
+>>>>>>> Stashed changes
 		frame.btn_sr:SetPoint( "Right", frame.online_indicator, "Left", -4, 0 )
 		frame.btn_sr:SetScript( "OnClick", function()
 			if event and m.sr_popup then
@@ -380,7 +385,12 @@ function M.new()
 		frame.btn_sr:Hide()
 
 		-- Bouton E (Gérer événement) : à gauche de SR
+<<<<<<< Updated upstream
 		frame.btn_manage = m.GuiElements.tiny_button( frame, "E", m.L( "ui.manage_event" ) or "Manage event", "#1565c0" )
+=======
+		frame.btn_manage = m.GuiElements.tiny_button( frame, "E", nil, "#1565c0" )
+		frame.btn_manage.tooltip_key = "ui.manage_event"
+>>>>>>> Stashed changes
 		frame.btn_manage:SetPoint( "Right", frame.btn_sr, "Left", -4, 0 )
 		frame.btn_manage:SetScript( "OnClick", function()
 			if event and m.EventManagePopup then
@@ -390,7 +400,12 @@ function M.new()
 		frame.btn_manage:Hide()
 
 		-- Bouton G (Groupes) : à gauche de E
+<<<<<<< Updated upstream
 		frame.btn_groups = m.GuiElements.tiny_button( frame, "G", m.L( "ui.manage_groups" ) or "Manage groups", "#e65100" )
+=======
+		frame.btn_groups = m.GuiElements.tiny_button( frame, "G", nil, "#e65100" )
+		frame.btn_groups.tooltip_key = "ui.manage_groups"
+>>>>>>> Stashed changes
 		frame.btn_groups:SetPoint( "Right", frame.btn_manage, "Left", -4, 0 )
 		frame.btn_groups:SetScript( "OnClick", function()
 			if event and m.GroupPopup then
@@ -400,7 +415,12 @@ function M.new()
 		frame.btn_groups:Hide()
 
 		-- Bouton I (Inviter) : le plus à gauche
+<<<<<<< Updated upstream
 		frame.btn_invite = m.GuiElements.tiny_button( frame, "I", m.L( "ui.invite_to_raid" ) or "Invite to raid", "#7b1fa2" )
+=======
+		frame.btn_invite = m.GuiElements.tiny_button( frame, "I", nil, "#7b1fa2" )
+		frame.btn_invite.tooltip_key = "ui.invite_to_raid"
+>>>>>>> Stashed changes
 		frame.btn_invite:SetPoint( "Right", frame.btn_groups, "Left", -4, 0 )
 		frame.btn_invite:SetScript( "OnClick", on_invite_click )
 		frame.btn_invite:Hide()

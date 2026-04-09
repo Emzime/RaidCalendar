@@ -37,6 +37,24 @@ m.register_locale("enUS", {
 		time_format_12 = "12-hour",
 		language_enUS = "English",
 		language_frFR = "French"
+<<<<<<< Updated upstream
+=======
+		language_deDE = "German",
+		language_esES = "Spanish",
+		language_itIT = "Italian",
+		language_plPL = "Polish",
+		language_ruRU = "Russian",
+		language_ptBR = "Portuguese (BR)",
+		language_ptPT = "Portuguese (PT)",
+		language_nlNL = "Dutch",
+		language_svSE = "Swedish",
+		language_daDK = "Danish",
+		language_nbNO = "Norwegian",
+		language_fiFI = "Finnish",
+		language_csCZ = "Czech",
+		language_huHU = "Hungarian",
+		language_roRO = "Romanian",
+>>>>>>> Stashed changes
 	},
 	time = {
 		in_days_one = "in {count} day",
@@ -64,7 +82,10 @@ m.register_locale("enUS", {
 		close_window = "Close Window",
 		new_event = "New event",
 		invite_to_raid = "Invite to raid",
+<<<<<<< Updated upstream
 		link = "Link:",
+=======
+>>>>>>> Stashed changes
 		loading = "Loading...",
 		hang_on_event = "Hang on while event data is loaded...",
 		no_signup_data = "No signup data",
@@ -84,7 +105,10 @@ m.register_locale("enUS", {
 		access_denied = "You do not have signup access for this event.",
 		checking_access = "Checking access...",
 		loading_events = "Loading events, please wait...",
+<<<<<<< Updated upstream
 		loaded = "(v{version}) Loaded",
+=======
+>>>>>>> Stashed changes
 		no_players_to_invite = "No players to invite",
 		discord_not_set = "DiscordID is not set",
 		class_not_selected = "Class not selected",
@@ -111,7 +135,10 @@ m.register_locale("enUS", {
 		tomorrow = "Tomorrow",
 		in_distant_future = "In the distant future",
 		upcoming_raids = "Upcoming raids",
+<<<<<<< Updated upstream
 		export_to_rollfor = "Export to RollFor",
+=======
+>>>>>>> Stashed changes
 		raid_locked = "Raid is locked",
 		your_reservations = "Your reservations ({count}/{limit})",
 		reserve_item = "Reserve item",
@@ -132,13 +159,35 @@ m.register_locale("enUS", {
 		sr_link = "SR:",
 		raid_session_ended = "Raid session ended.",
 		cleanup_done = "Old local events cleaned up.",
+<<<<<<< Updated upstream
 		rollfor_required = "RollFor v4.8.1 or higher is required.",
 		rollfor_export = "Export to RollFor",
 		events_cleared = "All events have been removed."
+=======
+		sr_add_failed    = "Adding SR failed",
+		sr_delete_failed = "Delete SR failed",
+		sr_lock_failed   = "Lock SR failed",
+		signup_failed    = "Signup failed",
+		update_available = "New version ({version}) is available!",
+		update_url       = "https://github.com/sica42/RaidCalendar",
+		errcode_invalid_data = "Invalid data",
+		rollfor_required = "RollFor v4.8.1 or higher is required.",
+		rollfor_export = "Export to RollFor",
+		events_cleared = "All events have been removed.",
+		raid_reset_tooltip_title = "Raid resets",
+		raid_reset_day = "Reset day: {date}",
+		raid_reset_every = "Resets every {count} days",
+		raid_reset_raid40 = "Raid 40",
+		raid_reset_raid40_desc = "MC / BWL / AQ40 / Naxx / ES",
+		raid_reset_onyxia = "Onyxia",
+		raid_reset_karazhan = "Karazhan",
+		raid_reset_raid20 = "Raid 20",
+		raid_reset_raid20_desc = "ZG / AQ20",
+		show_raid_resets = "Show raid reset icons"
+>>>>>>> Stashed changes
 	},
 	common = {
 		required = "required",
-		yes = "Yes",
 		no = "No"
 	},
 	local_event = {
@@ -153,7 +202,6 @@ m.register_locale("enUS", {
 		no_description = "No description.",
 		confirm_delete = "Delete this event permanently?",
 		error_not_creator = "You cannot delete an event you did not create.",
-		no_edit_permission = "You do not have permission to edit this event."
 	},
 	event_manage = {
 		invalid_datetime = "Invalid date/time (DD/MM/YYYY HH:MM).",
@@ -180,14 +228,11 @@ m.register_locale("enUS", {
 		delete = "Delete",
 		edit = "Edit",
 		status_created = "Event created!",
-		status_create_failed = "Event creation failed.",
 		status_saved = "Changes saved!",
-		status_save_failed = "Update failed.",
 		status_creating = "Creating event...",
 		status_updating = "Updating event...",
 		status_failed = "Failed",
 		status_deleted = "Event deleted.",
-		status_delete_failed = "Delete failed",
 		unknown_error = "Unknown error",
 		manager_role_verified = "Manager role verified.",
 		missing_manager_role = "You do not have the required Discord role.",
@@ -218,7 +263,10 @@ m.register_locale("enUS", {
 		link_bot = "Discord linked on bot side:",
 		link_addon = "Discord entered in addon:",
 		none = "none",
+<<<<<<< Updated upstream
 		sr_label = "SR:",
+=======
+>>>>>>> Stashed changes
 		rf_label = "RF:",
 		tab_raidres = "Raidres.top",
 		tab_local = "In-Game"
@@ -246,7 +294,10 @@ m.register_locale("enUS", {
 		clear                = "Clear plan",
 		auto                 = "Auto-fill",
 		announce             = "Announce",
+<<<<<<< Updated upstream
 		loading              = "Loading...",
+=======
+>>>>>>> Stashed changes
 		status_idle          = "Ready.",
 		status_local_only    = "Local plan changed — synchronization in progress...",
 		status_saving        = "Raid-Helper synchronization...",
@@ -263,7 +314,10 @@ m.register_locale("enUS", {
 		raid_lead_unknown    = "not set",
 		assistant_label      = "Assistant",
 		thread_label         = "Thread",
+<<<<<<< Updated upstream
 		sr_label             = "SR:",
+=======
+>>>>>>> Stashed changes
 		rh_label             = "Raid-Helper:",
 		rf_label             = "RollFor :",
 		web_label            = "Group :",

@@ -533,7 +533,7 @@ local function build()
 	f.lbl_sr = f:CreateFontString(nil, "OVERLAY", "RCFontNormalSmall")
 	f.lbl_sr:SetPoint("TOPLEFT", f, "TOPLEFT", 14, K.SR_Y)
 	f.lbl_sr:SetTextColor(1, 0.82, 0, 1)
-	f.lbl_sr:SetText(T("group_popup.sr_label") or "SR :")
+	f.lbl_sr:SetText(T("ui.sr_link") or "SR:")
 	f.lbl_sr:Hide()
 
 	local sr_box = CreateFrame("EditBox", nil, f)

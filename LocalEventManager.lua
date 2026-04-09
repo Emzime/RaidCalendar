@@ -220,7 +220,7 @@ function M.edit( event_id, data )
         return false
     end
     if not can_edit_local( ev ) then
-        m.error( m.L( "local_event.no_edit_permission" ) or "Insufficient permission." )
+        m.error( m.L( "event_manage.no_edit_permission" ) or "You do not have permission to edit this event." )
         return false
     end
 

@@ -794,6 +794,7 @@ function M.pfui_skin( frame )
 		if frame.settings.btn_save then frame.settings.btn_save:SetHeight( 22 ) end
 		if frame.settings.btn_welcome then frame.settings.btn_welcome:SetHeight( 22 ) end
 		safe( m.api.pfUI.api.SkinCheckbox, frame.settings.use_char_name )
+		safe( m.api.pfUI.api.SkinCheckbox, frame.settings.show_raid_resets )
 		safe( m.api.pfUI.api.StripTextures, frame.settings.discord, nil, "BACKGROUND" )
 		safe( m.api.pfUI.api.CreateBackdrop, frame.settings.discord, nil, true )
 		if frame.settings.time_format then skin_dropdown( frame.settings.time_format ) end
@@ -822,6 +823,7 @@ function M.pfui_skin( frame )
 		if frame.settings.btn_save then frame.settings.btn_save:SetHeight( 22 ) end
 		if frame.settings.btn_welcome then frame.settings.btn_welcome:SetHeight( 22 ) end
 		safe( m.api.pfUI.api.SkinCheckbox, frame.settings.use_char_name )
+		safe( m.api.pfUI.api.SkinCheckbox, frame.settings.show_raid_resets )
 		if frame.settings.time_format then skin_dropdown( frame.settings.time_format ) end
 		if frame.settings.locale_flag then skin_dropdown( frame.settings.locale_flag ) end
 		if frame.settings.discord then

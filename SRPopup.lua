@@ -629,7 +629,8 @@ function M.new()
 		--
 		-- Titlebar buttons
 		--
-		frame.btn_refresh = m.GuiElements.tiny_button( frame, "R", "Refresh", "#20F99F" )
+		frame.btn_refresh = m.GuiElements.tiny_button( frame, "R", nil, "#20F99F" )
+		frame.btn_refresh.tooltip_key = "ui.refresh"
 		frame.btn_refresh:SetPoint( "Right", frame.titlebar.btn_close, "Left", 2, 0 )
 		frame.btn_refresh:SetScript( "OnClick", function()
 			frame.btn_refresh:Disable()
@@ -644,7 +645,12 @@ function M.new()
 
 		---@diagnostic disable-next-line: undefined-global
 		if RollFor then
+<<<<<<< Updated upstream
 			frame.btn_export = m.GuiElements.tiny_button( frame, "E", m.L( "ui.rollfor_export" ) or "Export to RollFor", "#209FF9" )
+=======
+			frame.btn_export = m.GuiElements.tiny_button( frame, "E", nil, "#209FF9" )
+			frame.btn_export.tooltip_key = "ui.rollfor_export"
+>>>>>>> Stashed changes
 			frame.btn_export:SetPoint( "Right", frame.btn_refresh, "Left", 2, 0 )
 			frame.btn_export:SetScript( "OnClick", export_to_rollfor )
 		end

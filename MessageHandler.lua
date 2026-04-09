@@ -852,7 +852,7 @@ function M.new()
 				m.sr_popup.update( event_id )
 				m.calendar_popup.update()
 			elseif data.player == m.player then
-				m.error( "Adding SR failed: " .. (data.status or "Unknown error") )
+				m.error( (m.L("ui.sr_add_failed") or "Adding SR failed") .. ": " .. (data.status or (m.L("ui.error_unknown") or "Unknown error")) )
 			end
 		elseif command == MessageCommand.DeleteSRResult then
 			--
@@ -874,7 +874,7 @@ function M.new()
 					end
 				end
 			elseif data.player == m.player then
-				m.error( "Delete SR failed: " .. (data.status or "Unknown error") )
+				m.error( (m.L("ui.sr_delete_failed") or "Delete SR failed") .. ": " .. (data.status or (m.L("ui.error_unknown") or "Unknown error")) )
 			end
 		elseif command == MessageCommand.LockSRResult then
 			--
@@ -889,7 +889,7 @@ function M.new()
 
 				m.sr_popup.update()
 			elseif data.player == m.player then
-				m.error( "Lock SR failed: " .. (data.status or "Unknown error") )
+				m.error( (m.L("ui.sr_lock_failed") or "Lock SR failed") .. ": " .. (data.status or (m.L("ui.error_unknown") or "Unknown error")) )
 			end
 		elseif command == MessageCommand.Event then
 			--
@@ -1008,7 +1008,7 @@ function M.new()
 				m.calendar_popup.update()
 				m.event_popup.update( data.eventId )
 			elseif data.player == m.player then
-				m.error( "Signup failed: " .. ( data.status or "Unknown error" ) )
+				m.error( (m.L("ui.signup_failed") or "Signup failed") .. ": " .. (data.status or (m.L("ui.error_unknown") or "Unknown error")) )
 			end
 		elseif command == MessageCommand.BotStatus then
 			--
@@ -1305,8 +1305,8 @@ function M.new()
 			if not m.db.user_settings.last_versioncheck or time() - m.db.user_settings.last_versioncheck > 3600 * 24 then
 				m.db.user_settings.last_versioncheck = time()
 				if m.is_new_version( m.version, data.version ) then
-					m.info( string.format( "New version (%s) is available!", data.version ) )
-					m.info( "https://github.com/sica42/RaidCalendar" )
+					m.info( m.L("ui.update_available", { version = data.version }) or string.format("New version (%s) is available!", data.version) )
+					m.info( m.L("ui.update_url") or "https://github.com/sica42/RaidCalendar" )
 				end
 			end
 		end
@@ -1426,7 +1426,7 @@ end
 						local ok_cmd, cmd_err = pcall( on_command, cmd, lua_data, sender )
 						if not ok_cmd then m.debug( "RCERROR in handler [" .. tostring(cmd) .. "]: " .. tostring(cmd_err) ) end
 					else
-						m.error( "RCERROR [chunked " .. tostring(cmd) .. "]: Invalid data" )
+						m.error( "RCERROR [chunked " .. tostring(cmd) .. "]: " .. (m.L("ui.errcode_invalid_data") or "Invalid data") )
 						if parse_error then
 							m.debug( "Parse error: " .. tostring( parse_error ) )
 						end
@@ -1439,7 +1439,7 @@ end
 					local ok_cmd, cmd_err = pcall( on_command, command, lua_data, sender )
 					if not ok_cmd then m.debug( "RCERROR in handler [" .. tostring(command) .. "]: " .. tostring(cmd_err) ) end
 				else
-					m.error( "RCERROR [" .. tostring(command) .. "]: Invalid data" )
+					m.error( "RCERROR [" .. tostring(command) .. "]: " .. (m.L("ui.errcode_invalid_data") or "Invalid data") )
 					if parse_error then
 						m.debug( "Parse error: " .. tostring( parse_error ) )
 					end
