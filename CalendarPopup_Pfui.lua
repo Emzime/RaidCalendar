@@ -255,13 +255,16 @@ function M.new()
 		popup.settings.btn_save:SetText( m.L( "actions.save" ) )
 		popup.settings.btn_welcome:SetText( m.L( "actions.welcome_popup" ) )
 		popup.settings.btn_disconnect:SetText( m.L( "actions.disconnect" ) )
+		if popup.settings.show_raid_resets then
+			getglobal( popup.settings.show_raid_resets:GetName() .. "Text" ):SetText( m.L( "ui.show_raid_resets" ) )
+		end
 		popup.settings.time_format:SetItems( {
 			{ value = "24", text = m.L( "options.time_format_24" ) },
 			{ value = "12", text = m.L( "options.time_format_12" ) }
 		} )
-		popup.settings.locale_flag:SetItems( {
+		popup.settings.locale_flag:SetItems( (m.get_available_locales and m.get_available_locales()) or {
 			{ value = "enUS", text = m.locale_native_name and m.locale_native_name( "enUS" ) or "English" },
-			{ value = "frFR", text = m.locale_native_name and m.locale_native_name( "frFR" ) or "Francais" }
+			{ value = "frFR", text = m.locale_native_name and m.locale_native_name( "frFR" ) or "Français" }
 		} )
 	end
 
@@ -278,9 +281,11 @@ function M.new()
 		local previous_time_format = m.db.user_settings.time_format
 		local locale_changed = selected_locale_flag ~= previous_locale_flag
 		local tf_manually_changed = selected_time_format ~= previous_time_format
+		local selected_reset_icons = (popup.settings.show_raid_resets and popup.settings.show_raid_resets:GetChecked()) and 1 or 0
 
 		-- use_character_name est force a 1 (case a cocher supprimee)
 		m.db.user_settings.use_character_name = 1
+		m.db.user_settings.show_raid_reset_icons = selected_reset_icons
 		m.db.user_settings.time_format = selected_time_format
 		m.db.user_settings.locale_flag = selected_locale_flag
 		m.db.user_settings.ui_theme = theme_to_apply
@@ -543,6 +548,7 @@ function M.new()
 			local is_selected = selected_day and selected_day == day_time
 
 			cell.day_time = day_time
+			cell.raid_resets = m.get_raid_resets_for_day( day_time )
 			cell.day_number:SetText( tostring( day_info.day ) )
 			local column = mod( i - 1, days_per_week ) + 1
 			if is_current_month then
@@ -558,6 +564,7 @@ function M.new()
 			end
 			cell.bg:SetVertexColor( is_current_month and 0.07 or 0.035, is_current_month and 0.07 or 0.035, is_current_month and 0.09 or 0.05, 0.95 )
 
+			set_shown( cell.reset_icon, (not m.should_show_raid_reset_icons or m.should_show_raid_reset_icons()) and cell.raid_resets and getn( cell.raid_resets ) > 0 )
 			set_shown( cell.today_glow, is_today )
 			set_shown( cell.selected_overlay, is_selected )
 
@@ -628,6 +635,9 @@ function M.new()
 
 		popup.settings.time_format:SetSelected( (popup.settings:IsVisible() and pending_time_format) or m.db.user_settings.time_format )
 		popup.settings.locale_flag:SetSelected( (popup.settings:IsVisible() and pending_locale_flag) or (m.db.user_settings.locale_flag or "enUS") )
+		if popup.settings.show_raid_resets then
+			popup.settings.show_raid_resets:SetChecked( m.db.user_settings.show_raid_reset_icons == 1 )
+		end
 
 
 		refresh_data()
@@ -776,6 +786,25 @@ function M.new()
 		cell.more_label:SetTextColor( 0.7, 0.7, 0.75 )
 		cell.more_label:Hide()
 
+		cell.reset_icon = cell:CreateTexture( nil, "OVERLAY" )
+		cell.reset_icon:SetTexture( "Interface\\AddOns\\RaidCalendar\\assets\\icon_hourglass.tga" )
+		cell.reset_icon:SetWidth( 12 )
+		cell.reset_icon:SetHeight( 12 )
+		cell.reset_icon:SetPoint( "BottomRight", cell, "BottomRight", -4, 4 )
+		cell.reset_icon:Hide()
+
+		cell:SetScript( "OnEnter", function()
+			if (not m.should_show_raid_reset_icons or m.should_show_raid_reset_icons()) and cell.raid_resets and getn( cell.raid_resets ) > 0 then
+				m.show_raid_reset_tooltip( cell, cell.raid_resets, cell.day_time )
+			end
+		end )
+
+		cell:SetScript( "OnLeave", function()
+			if GameTooltip and GameTooltip:IsOwned( cell ) then
+				GameTooltip:Hide()
+			end
+		end )
+
 		cell:SetScript( "OnClick", function()
 			if not cell.day_time then
 				return
@@ -811,7 +840,8 @@ function M.new()
 		end
 
 		-- Bouton Refresh
-		frame.btn_refresh = m.GuiElements.tiny_button( frame, "R", m.L( "ui.refresh" ), "#20F99F" )
+		frame.btn_refresh = m.GuiElements.tiny_button( frame, "R", nil, "#20F99F" )
+		frame.btn_refresh.tooltip_key = "ui.refresh"
 		frame.btn_refresh:SetPoint( "Right", frame.titlebar.btn_close, "Left", 2, 0 )
 		frame.btn_refresh:SetScript( "OnClick", function()
 			frame.btn_refresh:Disable()
@@ -824,7 +854,8 @@ function M.new()
 		end )
 
 		-- Bouton Settings
-		frame.btn_settings = m.GuiElements.tiny_button( frame, "S", m.L( "ui.settings" ), "#F3DF2B" )
+		frame.btn_settings = m.GuiElements.tiny_button( frame, "S", nil, "#F3DF2B" )
+		frame.btn_settings.tooltip_key = "ui.settings"
 		frame.btn_settings:SetPoint( "Right", frame.btn_refresh, "Left", 2, 0 )
 		frame.btn_settings:SetScript( "OnClick", function()
 			frame.btn_settings.active = not frame.settings:IsVisible()
@@ -840,6 +871,9 @@ function M.new()
 				pending_locale_flag = m.db.user_settings.locale_flag or "enUS"
 				frame.settings.time_format:SetSelected( pending_time_format )
 				frame.settings.locale_flag:SetSelected( pending_locale_flag )
+				if frame.settings.show_raid_resets then
+					frame.settings.show_raid_resets:SetChecked( m.db.user_settings.show_raid_reset_icons == 1 )
+				end
 				if frame.settings.refresh_discord_ui then
 					frame.settings.refresh_discord_ui()
 				end
@@ -852,7 +886,8 @@ function M.new()
 		end )
 
 		-- Bouton Nouvel evenement
-		frame.btn_new_event = m.GuiElements.tiny_button( frame, "+", m.L( "ui.new_event" ), "#00FFFF" )
+		frame.btn_new_event = m.GuiElements.tiny_button( frame, "+", nil, "#00FFFF" )
+		frame.btn_new_event.tooltip_key = "ui.new_event"
 		frame.btn_new_event:SetPoint( "Right", frame.btn_settings, "Left", -2, 0 )
 		frame.btn_new_event:SetScript( "OnClick", function()
 			if m.EventManagePopup then
@@ -994,7 +1029,7 @@ function M.new()
 			:hidden()
 			:build()
 
-		local btn_welcome = gui.create_button( frame.settings, m.L( "actions.welcome_popup" ) or m.L( "ui.welcome_popup" ) or "Welcome popup", 130, function()
+		local btn_welcome = gui.create_button( frame.settings, m.L( "actions.welcome_popup" ) or "Welcome popup", 130, function()
 			m.welcome_popup.show()
 			popup:Hide()
 		end )
@@ -1074,9 +1109,9 @@ function M.new()
 			width = 100
 		} )
 		dd_locale:SetPoint( "TopLeft", frame.settings, "TopLeft", settings_dropdown_x, settings_first_row_y - settings_row_spacing + 2 )
-		dd_locale:SetItems( {
+		dd_locale:SetItems( (m.get_available_locales and m.get_available_locales()) or {
 			{ value = "enUS", text = m.locale_native_name and m.locale_native_name( "enUS" ) or "English" },
-			{ value = "frFR", text = m.locale_native_name and m.locale_native_name( "frFR" ) or "Francais" }
+			{ value = "frFR", text = m.locale_native_name and m.locale_native_name( "frFR" ) or "Français" }
 		}, function( value )
 			pending_locale_flag = value
 		end )
@@ -1111,6 +1146,13 @@ function M.new()
 			pending_ui_theme = sel
 		end
 		frame.settings.dd_theme = dd_theme
+
+		local cb_reset_icons = CreateFrame( "CheckButton", "RaidCalendarPopupShowRaidResetsPfui", frame.settings, "UICheckButtonTemplate" )
+		cb_reset_icons:SetWidth( 22 )
+		cb_reset_icons:SetHeight( 22 )
+		cb_reset_icons:SetPoint( "TopLeft", frame.settings, "TopLeft", settings_label_x, settings_first_row_y - (settings_row_spacing * 3) + 4 )
+		getglobal( cb_reset_icons:GetName() .. "Text" ):SetText( m.L( "ui.show_raid_resets" ) )
+		frame.settings.show_raid_resets = cb_reset_icons
 
 		if m.pfui_skin_enabled and m.api and m.api.pfUI and m.api.pfUI.api then
 			local pfui = m.api.pfUI.api
@@ -1223,6 +1265,9 @@ function M.new()
 		end
 		if popup.settings and popup.settings.locale_flag then
 			popup.settings.locale_flag:SetSelected( (popup.settings:IsVisible() and pending_locale_flag) or (m.db.user_settings.locale_flag or "enUS") )
+		end
+		if popup.settings and popup.settings.show_raid_resets then
+			popup.settings.show_raid_resets:SetChecked( m.db.user_settings.show_raid_reset_icons == 1 )
 		end
 		pending_ui_theme = m.db.user_settings.ui_theme or "Original"
 		if popup.settings and popup.settings.dd_theme then

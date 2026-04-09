@@ -364,14 +364,26 @@ function M.new()
 		---
 		--- Titlebar buttons
 		---
-		frame.btn_invite = m.GuiElements.tiny_button( frame, "I", m.L( "ui.invite_to_raid" ) or "Invite to raid", "#7b1fa2" )
-		frame.btn_invite:SetPoint( "Right", frame.titlebar.btn_close, "Left", 2, 0 )
-		frame.btn_invite:SetScript( "OnClick", on_invite_click )
-		frame.btn_invite:Hide()
+		-- Ordre titlebar (droite → gauche) : X | BotStatus | SR | E | G | I
 
-		-- Bouton Gerer l'evenement (crayon - visible si leader ou role manager)
-		frame.btn_manage = m.GuiElements.tiny_button( frame, "E", m.L( "ui.manage_event" ) or "Manage event", "#1565c0" )
-		frame.btn_manage:SetPoint( "Right", frame.btn_invite, "Left", -4, 0 )
+		-- Statut bot : juste à gauche du X
+		frame.online_indicator = gui.create_online_indicator( frame, frame.titlebar.btn_close )
+
+		-- Bouton SR : à gauche du statut bot (visible uniquement si inscrit)
+		frame.btn_sr = m.GuiElements.tiny_button( frame, "SR", nil, "#b8860b" )
+		frame.btn_sr.tooltip_key = "actions.reserve"
+		frame.btn_sr:SetPoint( "Right", frame.online_indicator, "Left", -4, 0 )
+		frame.btn_sr:SetScript( "OnClick", function()
+			if event and m.sr_popup then
+				m.sr_popup.show( event.id )
+			end
+		end )
+		frame.btn_sr:Hide()
+
+		-- Bouton E (Gérer événement) : à gauche de SR
+		frame.btn_manage = m.GuiElements.tiny_button( frame, "E", nil, "#1565c0" )
+		frame.btn_manage.tooltip_key = "ui.manage_event"
+		frame.btn_manage:SetPoint( "Right", frame.btn_sr, "Left", -4, 0 )
 		frame.btn_manage:SetScript( "OnClick", function()
 			if event and m.EventManagePopup then
 				m.EventManagePopup.show_edit( event.id )
@@ -379,8 +391,9 @@ function M.new()
 		end )
 		frame.btn_manage:Hide()
 
-		-- Bouton Gestion des Groupes (manager uniquement)
-		frame.btn_groups = m.GuiElements.tiny_button( frame, "G", m.L( "ui.manage_groups" ) or "Manage groups", "#e65100" )
+		-- Bouton G (Groupes) : à gauche de E
+		frame.btn_groups = m.GuiElements.tiny_button( frame, "G", nil, "#e65100" )
+		frame.btn_groups.tooltip_key = "ui.manage_groups"
 		frame.btn_groups:SetPoint( "Right", frame.btn_manage, "Left", -4, 0 )
 		frame.btn_groups:SetScript( "OnClick", function()
 			if event and m.GroupPopup then
@@ -389,7 +402,12 @@ function M.new()
 		end )
 		frame.btn_groups:Hide()
 
-		frame.online_indicator = gui.create_online_indicator( frame, frame.btn_groups )
+		-- Bouton I (Inviter) : le plus à gauche
+		frame.btn_invite = m.GuiElements.tiny_button( frame, "I", nil, "#7b1fa2" )
+		frame.btn_invite.tooltip_key = "ui.invite_to_raid"
+		frame.btn_invite:SetPoint( "Right", frame.btn_groups, "Left", -4, 0 )
+		frame.btn_invite:SetScript( "OnClick", on_invite_click )
+		frame.btn_invite:Hide()
 
 		local border_desc = m.FrameBuilder.new()
 				:parent( frame )
@@ -411,7 +429,7 @@ function M.new()
 		frame.sr_label = border_desc:CreateFontString( nil, "ARTWORK", "GameFontNormalSmall" )
 		frame.sr_label:SetPoint( "TopLeft", border_desc, "TopLeft", 8, -10 )
 		frame.sr_label:SetTextColor( 1, 0.82, 0, 1 )  -- or
-		frame.sr_label:SetText( "SR :" )
+		frame.sr_label:SetText( (m.L and m.L( "ui.sr_link" )) or "SR :" )
 		frame.sr_label:Hide()
 
 		local function make_link_box( parent, y )
@@ -631,8 +649,9 @@ function M.new()
 
 		local is_leader    = event.leaderId == m.db.user_settings.discord_id or m.debug_enabled
 		local has_manager  = m.db.user_settings.has_manager_role == true
-		local has_raider   = m.db.user_settings.has_raider_role == true
-		local can_signup   = has_raider or has_manager
+		local has_raider   = m.db.user_settings.has_raider_role  -- nil = pas encore vérifié
+		local can_signup   = has_raider == true or has_manager
+		local raider_pending = has_raider == nil and not has_manager
 		if is_leader or has_manager then
 			popup.btn_invite:Show()
 			popup.btn_invite:Enable()
@@ -846,6 +865,13 @@ function M.new()
 			end
 		end
 
+		-- Bouton SR : visible uniquement si le joueur est inscrit et que l'event a un lien SR
+		if signup_id and is_raidres then
+			popup.btn_sr:Show()
+		else
+			popup.btn_sr:Hide()
+		end
+
 		-- Event closed
 		if event.closingTime < now then
 			for _, v in buttons do
@@ -861,15 +887,19 @@ function M.new()
 		popup.btn_access:Hide()
 		local has_access = m.db.user_settings.channel_access[ event.channelId ]
 
-		-- Vérifier rôle raider si pas encore fait
-		if m.db.user_settings.has_raider_role == nil and not has_manager then
+		-- Déclencher vérification raider si pas encore fait
+		if raider_pending then
 			if m.msg and m.msg.check_raider_role then
 				m.msg.check_raider_role( m.db.user_settings.discord_id )
 			end
 		end
 		-- No access
-		if not can_signup then
-			-- Joueur sans rôle raider/manager : masquer les boutons signup
+		if raider_pending then
+			-- Vérification en cours : afficher message d'attente
+			popup.label_noaccess:Show()
+			popup.label_noaccess:SetText( m.L and m.L( "ui.checking_access" ) or "Checking access..." )
+		elseif not can_signup then
+			-- Rôle insuffisant : masquer les boutons
 			for _, v in buttons do
 				local btn = btn_keys[ v ]
 				popup[ btn ]:Hide()

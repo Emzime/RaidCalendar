@@ -340,6 +340,122 @@ function M.flatten( value )
 	error( "Unsupported type: " .. value_type )
 end
 
+
+local raid_reset_definitions = nil
+
+function M.should_show_raid_reset_icons()
+	return not not (M.db and M.db.user_settings and M.db.user_settings.show_raid_reset_icons == 1)
+end
+
+local function normalize_reset_day( timestamp )
+	local info = date( "*t", timestamp )
+	info.hour = 12
+	info.min = 0
+	info.sec = 0
+	return time( info )
+end
+
+local function get_raid_reset_definitions()
+	if raid_reset_definitions then
+		return raid_reset_definitions
+	end
+
+	raid_reset_definitions = {
+		{
+			key = "raid40",
+			title_key = "ui.raid_reset_raid40",
+			subtitle_key = "ui.raid_reset_raid40_desc",
+			every_days = 7,
+			anchor = normalize_reset_day( time( { year = 2026, month = 4, day = 14, hour = 12, min = 0, sec = 0 } ) )
+		},
+		{
+			key = "onyxia",
+			title_key = "ui.raid_reset_onyxia",
+			subtitle_key = nil,
+			every_days = 5,
+			anchor = normalize_reset_day( time( { year = 2026, month = 4, day = 13, hour = 12, min = 0, sec = 0 } ) )
+		},
+		{
+			key = "karazhan",
+			title_key = "ui.raid_reset_karazhan",
+			subtitle_key = nil,
+			every_days = 5,
+			anchor = normalize_reset_day( time( { year = 2026, month = 4, day = 9, hour = 12, min = 0, sec = 0 } ) )
+		},
+		{
+			key = "raid20",
+			title_key = "ui.raid_reset_raid20",
+			subtitle_key = "ui.raid_reset_raid20_desc",
+			every_days = 3,
+			anchor = normalize_reset_day( time( { year = 2026, month = 4, day = 11, hour = 12, min = 0, sec = 0 } ) )
+		}
+	}
+
+	return raid_reset_definitions
+end
+
+function M.get_raid_resets_for_day( timestamp )
+	local resets = {}
+	local day_time = normalize_reset_day( timestamp )
+	local definitions = get_raid_reset_definitions()
+
+	for i = 1, getn( definitions ) do
+		local def = definitions[ i ]
+		local diff_days = math.floor( (day_time - def.anchor) / 86400 )
+		if math.mod( diff_days, def.every_days ) == 0 then
+			table.insert( resets, {
+				key = def.key,
+				title_key = def.title_key,
+				subtitle_key = def.subtitle_key,
+				every_days = def.every_days,
+				day_time = day_time
+			} )
+		end
+	end
+
+	return resets
+end
+
+function M.show_raid_reset_tooltip( owner, resets, timestamp )
+	if not owner or type( resets ) ~= "table" or getn( resets ) == 0 or not GameTooltip then
+		return
+	end
+
+	GameTooltip:SetOwner( owner, "ANCHOR_RIGHT" )
+	GameTooltip:ClearLines()
+	GameTooltip:SetText( M.L( "ui.raid_reset_tooltip_title" ), 1, 0.82, 0 )
+
+	if timestamp then
+		GameTooltip:AddLine(
+			M.L( "ui.raid_reset_day", { date = M.format_local_date( timestamp, "weekday_day_month" ) } ),
+			0.9, 0.9, 0.9, 1
+		)
+	end
+
+	GameTooltip:AddLine( " " )
+
+	for i = 1, getn( resets ) do
+		local reset = resets[ i ]
+		local title = M.L( reset.title_key )
+		local subtitle = reset.subtitle_key and M.L( reset.subtitle_key ) or nil
+
+		GameTooltip:AddLine( title, 1, 0.82, 0, 1 )
+		if subtitle and subtitle ~= "" and subtitle ~= reset.subtitle_key then
+			GameTooltip:AddLine( subtitle, 0.75, 0.75, 0.75, 1 )
+		end
+		GameTooltip:AddLine(
+			M.L( "ui.raid_reset_every", { count = reset.every_days } ),
+			0.7, 0.7, 0.7, 1
+		)
+
+		if i < getn( resets ) then
+			GameTooltip:AddLine( " " )
+		end
+	end
+
+	GameTooltip:Show()
+end
+
 ---@diagnostic disable-next-line: undefined-field
 if not string.gmatch then string.gmatch = string.gfind end
 

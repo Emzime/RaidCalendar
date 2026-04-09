@@ -533,7 +533,7 @@ local function build()
 	f.lbl_sr = f:CreateFontString(nil, "OVERLAY", "RCFontNormalSmall")
 	f.lbl_sr:SetPoint("TOPLEFT", f, "TOPLEFT", 14, K.SR_Y)
 	f.lbl_sr:SetTextColor(1, 0.82, 0, 1)
-	f.lbl_sr:SetText(T("group_popup.sr_label") or "SR :")
+	f.lbl_sr:SetText(T("ui.sr_link") or "SR:")
 	f.lbl_sr:Hide()
 
 	local sr_box = CreateFrame("EditBox", nil, f)
@@ -739,7 +739,7 @@ update_group_thread_ui = function()
 			popup.lbl_raid_info:SetText(txt)
 			popup.lbl_raid_info:SetTextColor(0.85, 0.85, 0.85, 1)
 		else
-			popup.lbl_raid_info:SetText("RL: " .. (T("group_popup.raid_lead_unknown") or "not set"))
+			popup.lbl_raid_info:SetText((T("group_popup.raid_lead") or "RL") .. ": " .. (T("group_popup.raid_lead_unknown") or "not set"))
 			popup.lbl_raid_info:SetTextColor(0.55, 0.55, 0.55, 1)
 		end
 	end
@@ -1002,7 +1002,7 @@ function M.on_rf_data_result( success, rf_data, status )
 	if success and rf_data and rf_data ~= "" then
 		popup.rf_box:SetText(rf_data)
 	else
-		popup.rf_box:SetText(status or "Error")
+		popup.rf_box:SetText(status or T("event_manage.status_failed") or "Error")
 	end
 end
 

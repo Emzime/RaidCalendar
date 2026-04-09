@@ -57,6 +57,10 @@ function RaidCalendar.events:ADDON_LOADED()
 	m.db.user_settings.ui_theme = m.db.user_settings.ui_theme or "Blizzard"
 	-- Toujours utiliser le nom du personnage (case a cocher supprimee, option forcee)
 	m.db.user_settings.use_character_name = 1
+	m.db.user_settings.show_raid_reset_icons = m.db.user_settings.show_raid_reset_icons
+	if m.db.user_settings.show_raid_reset_icons == nil then
+		m.db.user_settings.show_raid_reset_icons = 1
+	end
 
 	m.time_format = m.db.user_settings.time_format == "24" and "%H:%M" or "%I:%M %p"
 
@@ -67,11 +71,7 @@ function RaidCalendar.events:ADDON_LOADED()
 			selected_locale = ( GetLocale and GetLocale() ) or "enUS"
 		end
 
-		if selected_locale ~= "enUS" and selected_locale ~= "frFR" then
-			selected_locale = "enUS"
-		end
-
-		m.set_locale( selected_locale )
+		selected_locale = m.set_locale( selected_locale )
 		m.db.user_settings.locale_flag = selected_locale
 	end
 
@@ -100,6 +100,14 @@ function RaidCalendar.events:ADDON_LOADED()
 				m.RaidTracker.request_role_check()
 			end
 		end, 5 )
+		-- Re-vérification périodique des rôles toutes les 5 minutes
+		m.ace_timer.ScheduleRepeatingTimer( m, function()
+			if m.db and m.db.user_settings and m.db.user_settings.discord_id then
+				if m.RaidTracker and m.RaidTracker.request_role_check then
+					m.RaidTracker.request_role_check()
+				end
+			end
+		end, 300 )
 	end
 
 	-- Bot status detection:
@@ -251,7 +259,7 @@ function RaidCalendar.events:ADDON_LOADED()
 		end
 
 		if args == "clear" then
-			m.info( "All events have been removed" )
+			m.info( m.L( "ui.events_cleared" ) or "All events have been removed." )
 			m.db.events = {}
 			return
 		end
