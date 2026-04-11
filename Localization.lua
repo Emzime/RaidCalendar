@@ -172,6 +172,23 @@ function M.get_available_locales()
 	return result
 end
 
+function M.get_available_locales()
+	copy_builtin_locales()
+	local locales = {}
+	for locale_code, _ in pairs(registry) do
+		table.insert(locales, locale_code)
+	end
+	table.sort(locales)
+	local result = {}
+	for _, locale_code in ipairs(locales) do
+		table.insert(result, {
+			value = locale_code,
+			text = M.locale_native_name(locale_code),
+		})
+	end
+	return result
+end
+
 function M.register(locale, data)
 	if type(locale) ~= "string" or locale == "" or type(data) ~= "table" then
 		return
