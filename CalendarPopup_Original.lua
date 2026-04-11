@@ -72,13 +72,16 @@ function M.new()
 			{ value = "24", text = l( "options.time_format_24" ) },
 			{ value = "12", text = l( "options.time_format_12" ) }
 		} )
-		popup.settings.locale_flag:SetItems( {
+		popup.settings.locale_flag:SetItems( (m.get_available_locales and m.get_available_locales()) or {
 			{ value = "enUS", text = m.locale_native_name and m.locale_native_name( "enUS" ) or "English" },
-			{ value = "frFR", text = m.locale_native_name and m.locale_native_name( "frFR" ) or "Francais" }
+			{ value = "frFR", text = m.locale_native_name and m.locale_native_name( "frFR" ) or "Fran\195\167ais" }
 		} )
 		popup.settings.btn_save:SetText( l( "actions.save" ) )
 		popup.settings.btn_welcome:SetText( l( "actions.welcome_popup" ) )
 		popup.settings.btn_disconnect:SetText( l( "actions.disconnect" ) )
+		if popup.settings.show_raid_resets then
+			getglobal( popup.settings.show_raid_resets:GetName() .. "Text" ):SetText( l( "ui.show_raid_resets" ) )
+		end
 		if popup.settings.lbl_theme then popup.settings.lbl_theme:SetText( l( "ui.ui_theme" ) ) end
 		popup.btn_refresh.tooltip = l( "ui.refresh" )
 		popup.btn_settings.tooltip = l( "ui.settings" )
@@ -90,6 +93,9 @@ function M.new()
 
 		-- use_character_name est force a 1 (case a cocher supprimee)
 		m.db.user_settings.use_character_name = 1
+		if popup.settings.show_raid_resets then
+			m.db.user_settings.show_raid_reset_icons = popup.settings.show_raid_resets:GetChecked() and 1 or 0
+		end
 		m.db.user_settings.time_format = popup.settings.time_format.selected
 		m.time_format = m.db.user_settings.time_format == "24" and "%H:%M" or "%I:%M %p"
 		local locale_changed = popup.settings.locale_flag and
@@ -345,7 +351,8 @@ function M.new()
 		end
 
 				-- Bouton Nouvel evenement
-		frame.btn_new_event = m.GuiElements.tiny_button( frame, "+", m.L and m.L( "ui.new_event" ) or "Nouvel evenement", "#2e7d32" )
+		frame.btn_new_event = m.GuiElements.tiny_button( frame, "+", nil, "#2e7d32" )
+		frame.btn_new_event.tooltip_key = "ui.new_event"
 		frame.btn_new_event:SetPoint( "TopRight", frame, "TopRight", -34, -4 )
 		frame.btn_new_event:SetScript( "OnClick", function()
 			if m.EventManagePopup then
@@ -381,7 +388,8 @@ function M.new()
 		---
 		--- Titlebar buttons
 		---
-		frame.btn_refresh = m.GuiElements.tiny_button( frame, "R", m.L and m.L( "ui.refresh" ) or "Refresh", "#20F99F" )
+		frame.btn_refresh = m.GuiElements.tiny_button( frame, "R", nil, "#20F99F" )
+		frame.btn_refresh.tooltip_key = "ui.refresh"
 		frame.btn_refresh:SetPoint( "Right", frame.titlebar.btn_close, "Left", 2, 0 )
 		frame.btn_refresh:SetScript( "OnClick", function()
 			frame.btn_refresh:Disable()
@@ -393,7 +401,8 @@ function M.new()
 			end
 		end )
 
-		frame.btn_settings = m.GuiElements.tiny_button( frame, "S", m.L and m.L( "ui.settings" ) or "Settings", "#F3DF2B" )
+		frame.btn_settings = m.GuiElements.tiny_button( frame, "S", nil, "#F3DF2B" )
+		frame.btn_settings.tooltip_key = "ui.settings"
 		frame.btn_settings:SetPoint( "Right", frame.btn_refresh, "Left", 2, 0 )
 		frame.btn_settings:SetScript( "OnClick", function()
 			if frame.settings:IsVisible() then
@@ -548,7 +557,7 @@ function M.new()
 				for _, region in ipairs( regions ) do
 					if region and region.GetObjectType and region:GetObjectType() == "FontString" then
 						local txt = region.GetText and region:GetText() or nil
-						if txt == m.L( "ui.ui_theme" ) or "UI Theme" then
+						if txt == ( m.L( "ui.ui_theme" ) or "UI Theme" ) then
 							theme_label = region
 							settings.label_theme = region
 							break
@@ -601,11 +610,22 @@ function M.new()
 			width = 110
 		} )
 		dd_locale:SetPoint( "TopLeft", frame.settings, "TopLeft", 121, -50 )
-		dd_locale:SetItems( {
+		dd_locale:SetItems( (m.get_available_locales and m.get_available_locales()) or {
 			{ value = "enUS", text = m.locale_native_name and m.locale_native_name( "enUS" ) or "English" },
-			{ value = "frFR", text = m.locale_native_name and m.locale_native_name( "frFR" ) or "Francais" }
+			{ value = "frFR", text = m.locale_native_name and m.locale_native_name( "frFR" ) or "Fran\195\167ais" }
 		} )
 		frame.settings.locale_flag = dd_locale
+
+		-- Les ic\195\180nes de reset de raid sont disponibles dans les th\195\168mes Pfui et Blizzard.
+		-- Dans le th\195\168me Original (liste d'\195\169v\195\169nements), il n'y a pas de grille mensuelle
+		-- pour les afficher. La pr\195\169f\195\169rence est tout de m\195\170me sauvegard\195\169e.
+		local cb_reset_icons = CreateFrame( "CheckButton", "RaidCalendarPopupShowRaidResetsOriginal", frame.settings, "UICheckButtonTemplate" )
+		cb_reset_icons:SetWidth( 22 )
+		cb_reset_icons:SetHeight( 22 )
+		cb_reset_icons:SetPoint( "TopLeft", frame.settings, "TopLeft", 300, -50 )
+		getglobal( cb_reset_icons:GetName() .. "Text" ):SetText( m.L( "ui.show_raid_resets" ) )
+		cb_reset_icons:SetAlpha( 0.45 )  -- visuellement gris\195\169 : pr\195\169f\195\169rence sauvegard\195\169e mais sans effet dans ce th\195\168me
+		frame.settings.show_raid_resets = cb_reset_icons
 
 		local btn_welcome = gui.create_button( frame.settings, m.L and m.L( "actions.welcome_popup" ) or "Welcome popup", 130, function()
 			m.welcome_popup.show()
@@ -655,6 +675,9 @@ function M.new()
 		popup.settings.time_format:SetSelected( m.db.user_settings.time_format )
 		if popup.settings.locale_flag then
 			popup.settings.locale_flag:SetSelected( m.db.user_settings.locale_flag or "enUS" )
+		end
+		if popup.settings.show_raid_resets then
+			popup.settings.show_raid_resets:SetChecked( m.db.user_settings.show_raid_reset_icons == 1 )
 		end
 
 		if not events or refresh_data then
@@ -768,6 +791,9 @@ function M.new()
 		if popup.settings.locale_flag then
 			popup.settings.locale_flag:SetSelected( m.db.user_settings.locale_flag or "enUS" )
 		end
+		if popup.settings.show_raid_resets then
+			popup.settings.show_raid_resets:SetChecked( m.db.user_settings.show_raid_reset_icons == 1 )
+		end
 		pending_ui_theme = m.db.user_settings.ui_theme or "Original"
 		if popup.settings.dd_theme then
 			popup.settings.pending_ui_theme = pending_ui_theme
@@ -781,7 +807,7 @@ function M.new()
 				for _, region in ipairs( regions ) do
 					if region and region.GetObjectType and region:GetObjectType() == "FontString" then
 						local txt = region.GetText and region:GetText() or nil
-						if txt == m.L( "ui.ui_theme" ) or "UI Theme" then
+						if txt == ( m.L( "ui.ui_theme" ) or "UI Theme" ) then
 							theme_label = region
 							settings.label_theme = region
 							break

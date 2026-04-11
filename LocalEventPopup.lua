@@ -544,7 +544,8 @@ local function create_frame()
         frame:SetPoint(p.point, UIParent, p.relative_point, p.x, p.y)
     end
 
-    frame.btn_manage = m.GuiElements.tiny_button(frame, "E", T("ui.manage_event") or "Manage event", "#1565c0")
+    frame.btn_manage = m.GuiElements.tiny_button(frame, "E", nil, "#1565c0")
+    frame.btn_manage.tooltip_key = "ui.manage_event"
     frame.btn_manage:SetPoint("Right", frame.titlebar.btn_close, "Left", -4, 0)
     frame.btn_manage:SetScript("OnClick", function()
         if event and m.EventManagePopup then
@@ -932,12 +933,13 @@ local function refresh(event_id)
             popup[active_btn]:Disable()
         end
     else
-        -- Vérifier le rôle member/raider/manager pour s'inscrire
-        local has_manager = m.db and m.db.user_settings and m.db.user_settings.has_manager_role == true
-        local has_raider  = m.db and m.db.user_settings and m.db.user_settings.has_raider_role == true
-        local has_member  = m.db and m.db.user_settings and m.db.user_settings.has_member_role == true
-        local can_signup  = has_member or has_raider or has_manager
-        if can_signup then
+        -- Vérifier le rôle : nil = pas encore connu (autoriser), false = refusé
+        local has_manager = m.db and m.db.user_settings and m.db.user_settings.has_manager_role
+        local has_raider  = m.db and m.db.user_settings and m.db.user_settings.has_raider_role
+        local has_member  = m.db and m.db.user_settings and m.db.user_settings.has_member_role
+        -- Refusé seulement si TOUS les rôles sont explicitement false
+        local denied = has_member == false and has_raider == false and has_manager == false
+        if not denied then
             apply_signup_popup_layout("signup")
             popup.btn_signup:Show()
             popup.btn_signup:Enable()
@@ -1039,6 +1041,10 @@ function M.on_signup_error(_)
         popup.cs_change:Enable()
         popup.cs_cancel:Enable()
     end
+end
+
+function M.get_frame()
+	return popup
 end
 
 m.LocalEventPopup = M

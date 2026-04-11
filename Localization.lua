@@ -11,6 +11,24 @@ local M = {}
 local registry = {}
 local default_locale = "enUS"
 
+local locale_order = {
+	"enUS",
+	"frFR",
+	"deDE",
+	"esES",
+	"ruRU",
+	"ptBR",
+}
+
+local locale_native_names = {
+	enUS = "English",
+	frFR = "Fran\195\167ais",
+	deDE = "Deutsch",
+	esES = "Espa\195\177ol",
+	ruRU = "\208\160\209\131\209\129\209\129\208\186\208\184\208\185",
+	ptBR = "Portugu\195\170s (Brasil)",
+}
+
 local builtin_locales = {
 
 }
@@ -113,14 +131,45 @@ local function resolve_key(key)
 	return nil
 end
 
---- Returns the display name of a locale in its OWN language (e.g. "Francais" for frFR, regardless of current locale)
+--- Returns the display name of a locale in its OWN language.
 function M.locale_native_name( locale_code )
 	copy_builtin_locales()
 	local t = registry[ locale_code ] or builtin_locales[ locale_code ] or {}
-	-- Use the locale's own name for itself stored under options.language_<code>
-	local options = t.options or {}
-	local key = "language_" .. locale_code
-	return options[ key ] or locale_code
+
+	if type( t.meta ) == "table" and type( t.meta.native_name ) == "string" and t.meta.native_name ~= "" then
+		return t.meta.native_name
+	end
+
+	return locale_native_names[ locale_code ] or locale_code
+end
+
+function M.get_available_locales()
+	copy_builtin_locales()
+	local seen = {}
+	local result = {}
+	local i
+
+	for i = 1, table.getn( locale_order ) do
+		local locale_code = locale_order[ i ]
+		if registry[ locale_code ] then
+			table.insert( result, {
+				value = locale_code,
+				text = M.locale_native_name( locale_code ),
+			} )
+			seen[ locale_code ] = true
+		end
+	end
+
+	for locale_code, _ in pairs( registry ) do
+		if not seen[ locale_code ] then
+			table.insert( result, {
+				value = locale_code,
+				text = M.locale_native_name( locale_code ),
+			} )
+		end
+	end
+
+	return result
 end
 
 function M.register(locale, data)
@@ -224,6 +273,7 @@ m.set_locale = M.set_locale
 m.L = M.translate
 m.text = M.text
 m.locale_native_name = M.locale_native_name
+m.get_available_locales = M.get_available_locales
 m.translate_text = M.translate_text
 m.localize_term = M.term
 m.class_name = M.class_name

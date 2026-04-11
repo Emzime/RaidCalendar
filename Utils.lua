@@ -340,6 +340,202 @@ function M.flatten( value )
 	error( "Unsupported type: " .. value_type )
 end
 
+
+local raid_reset_definitions = nil
+
+function M.should_show_raid_reset_icons()
+	return not not (M.db and M.db.user_settings and M.db.user_settings.show_raid_reset_icons == 1)
+end
+
+local function normalize_reset_day( timestamp )
+	local info = date( "*t", timestamp )
+	info.hour = 12
+	info.min = 0
+	info.sec = 0
+	return time( info )
+end
+
+local function get_raid_reset_definitions()
+	if raid_reset_definitions then
+		return raid_reset_definitions
+	end
+
+	raid_reset_definitions = {
+		{
+			key = "raid40",
+			title_key = "ui.raid_reset_raid40",
+			subtitle_key = "ui.raid_reset_raid40_desc",
+			every_days = 7,
+			anchor = normalize_reset_day( time( { year = 2026, month = 4, day = 14, hour = 12, min = 0, sec = 0 } ) )
+		},
+		{
+			key = "onyxia",
+			title_key = "ui.raid_reset_onyxia",
+			subtitle_key = nil,
+			every_days = 5,
+			anchor = normalize_reset_day( time( { year = 2026, month = 4, day = 13, hour = 12, min = 0, sec = 0 } ) )
+		},
+		{
+			key = "karazhan",
+			title_key = "ui.raid_reset_karazhan",
+			subtitle_key = nil,
+			every_days = 5,
+			anchor = normalize_reset_day( time( { year = 2026, month = 4, day = 9, hour = 12, min = 0, sec = 0 } ) )
+		},
+		{
+			key = "raid20",
+			title_key = "ui.raid_reset_raid20",
+			subtitle_key = "ui.raid_reset_raid20_desc",
+			every_days = 3,
+			anchor = normalize_reset_day( time( { year = 2026, month = 4, day = 11, hour = 12, min = 0, sec = 0 } ) )
+		}
+	}
+
+	return raid_reset_definitions
+end
+
+function M.get_raid_resets_for_day( timestamp )
+	local resets = {}
+	local day_time = normalize_reset_day( timestamp )
+	local definitions = get_raid_reset_definitions()
+
+	for i = 1, getn( definitions ) do
+		local def = definitions[ i ]
+		local diff_days = math.floor( (day_time - def.anchor) / 86400 )
+		if math.mod( diff_days, def.every_days ) == 0 then
+			table.insert( resets, {
+				key = def.key,
+				title_key = def.title_key,
+				subtitle_key = def.subtitle_key,
+				every_days = def.every_days,
+				day_time = day_time
+			} )
+		end
+	end
+
+	return resets
+end
+
+
+local function build_reset_visual( texture, ribbon, alpha, tint, dim_alpha_current, dim_alpha_other, border_alpha, label )
+	return {
+		texture = texture,
+		ribbon = ribbon,
+		alpha = alpha,
+		tint = tint,
+		dim_alpha_current = dim_alpha_current,
+		dim_alpha_other = dim_alpha_other,
+		border_alpha = border_alpha,
+		label = label
+	}
+end
+
+function M.get_raid_reset_visuals( reset )
+	if not reset or not reset.key then
+		return {
+			build_reset_visual( "Interface\\Icons\\INV_Misc_QuestionMark", { 1, 0.82, 0, 0.95 }, 0.88, { 0.72, 0.72, 0.72 }, 0.34, 0.46, 0.22, nil )
+		}
+	end
+
+	if reset.key == "raid40" then
+		return {
+			build_reset_visual( "Interface\\Icons\\Spell_Fire_Fire", { 0.92, 0.42, 0.12, 0.94 }, 0.92, { 0.90, 0.90, 0.90 }, 0.18, 0.28, 0.24, "MC" ),
+			build_reset_visual( "Interface\\Icons\\INV_Misc_Head_Dragon_Black", { 0.60, 0.24, 0.72, 0.94 }, 0.92, { 0.90, 0.90, 0.90 }, 0.18, 0.28, 0.24, "BWL" ),
+			build_reset_visual( "Interface\\Icons\\INV_Misc_AhnQirajTrinket_04", { 0.85, 0.70, 0.20, 0.94 }, 0.92, { 0.90, 0.90, 0.90 }, 0.18, 0.28, 0.24, "AQ40" ),
+			build_reset_visual( "Interface\\Icons\\Spell_Shadow_DeathAndDecay", { 0.36, 0.52, 0.90, 0.94 }, 0.92, { 0.90, 0.90, 0.90 }, 0.18, 0.28, 0.24, "Naxx" ),
+			build_reset_visual( "Interface\\Icons\\INV_Misc_Gem_Emerald_01", { 0.16, 0.72, 0.42, 0.94 }, 0.92, { 0.90, 0.90, 0.90 }, 0.18, 0.28, 0.24, "ES" )
+		}
+	elseif reset.key == "onyxia" then
+		return {
+			build_reset_visual( "Interface\\Icons\\INV_Misc_Head_Dragon_Black", { 0.52, 0.20, 0.68, 0.90 }, 0.90, { 0.84, 0.84, 0.84 }, 0.20, 0.30, 0.22, "Ony" )
+		}
+	elseif reset.key == "karazhan" then
+		return {
+			build_reset_visual( "Interface\\Icons\\INV_Misc_Book_11", { 0.20, 0.55, 0.86, 0.90 }, 0.88, { 0.80, 0.80, 0.80 }, 0.24, 0.34, 0.20, "KZ" )
+		}
+	elseif reset.key == "raid20" then
+		return {
+			build_reset_visual( "Interface\\Icons\\Ability_Hunter_RaptorStrike", { 0.70, 0.18, 0.18, 0.92 }, 0.90, { 0.88, 0.88, 0.88 }, 0.20, 0.30, 0.22, "ZG" ),
+			build_reset_visual( "Interface\\Icons\\INV_Misc_AhnQirajTrinket_03", { 0.86, 0.64, 0.18, 0.92 }, 0.90, { 0.88, 0.88, 0.88 }, 0.20, 0.30, 0.22, "AQ20" )
+		}
+	end
+
+	return {
+		build_reset_visual( "Interface\\Icons\\INV_Misc_QuestionMark", { 1, 0.82, 0, 0.95 }, 0.88, { 0.72, 0.72, 0.72 }, 0.34, 0.46, 0.22, nil )
+	}
+end
+
+function M.get_raid_reset_day_visuals( resets )
+	local visuals = {}
+	local seen = {}
+
+	if type( resets ) ~= "table" then
+		return visuals
+	end
+
+	for i = 1, getn( resets ) do
+		local reset_visuals = M.get_raid_reset_visuals( resets[ i ] )
+		for j = 1, getn( reset_visuals ) do
+			local visual = reset_visuals[ j ]
+			local token = visual.texture .. "|" .. (visual.label or "")
+			if not seen[ token ] then
+				seen[ token ] = 1
+				table.insert( visuals, visual )
+			end
+		end
+	end
+
+	return visuals
+end
+
+function M.get_raid_reset_visual( reset )
+	local visuals = M.get_raid_reset_visuals( reset )
+	if getn( visuals ) > 0 then
+		return visuals[ 1 ]
+	end
+	return build_reset_visual( "Interface\\Icons\\INV_Misc_QuestionMark", { 1, 0.82, 0, 0.95 }, 0.88, { 0.72, 0.72, 0.72 }, 0.34, 0.46, 0.22, nil )
+end
+
+
+function M.show_raid_reset_tooltip( owner, resets, timestamp )
+	if not owner or type( resets ) ~= "table" or getn( resets ) == 0 or not GameTooltip then
+		return
+	end
+
+	GameTooltip:SetOwner( owner, "ANCHOR_RIGHT" )
+	GameTooltip:ClearLines()
+
+	for i = 1, getn( resets ) do
+		local reset = resets[ i ]
+		local title = M.L( reset.title_key )
+		local subtitle = reset.subtitle_key and M.L( reset.subtitle_key ) or nil
+
+		GameTooltip:AddLine( title, 1, 0.82, 0, 1 )
+		GameTooltip:AddLine(
+			M.L( "ui.raid_reset_every", { count = reset.every_days } ),
+			0.78, 0.78, 0.78, 1
+		)
+
+		if subtitle and subtitle ~= "" and subtitle ~= reset.subtitle_key then
+			GameTooltip:AddLine( " " )
+			GameTooltip:AddLine( subtitle, 0.95, 0.95, 0.95, 1 )
+		end
+
+		if timestamp then
+			GameTooltip:AddLine(
+				M.L( "ui.raid_reset_day", { date = M.format_local_date( timestamp, "weekday_day_month" ) } ),
+				0.95, 0.95, 0.95, 1
+			)
+		end
+
+		if i < getn( resets ) then
+			GameTooltip:AddLine( " " )
+		end
+	end
+
+	GameTooltip:Show()
+end
+
 ---@diagnostic disable-next-line: undefined-field
 if not string.gmatch then string.gmatch = string.gfind end
 

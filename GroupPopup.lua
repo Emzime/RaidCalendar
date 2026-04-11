@@ -57,8 +57,8 @@ local K = {
 	LEFT_W        = 155,
 	RIGHT_X       = 175,      -- LEFT_X(10) + LEFT_W(155) + 10
 	COL_W         = 125,
-	SEP_Y         = -18,      -- séparateur juste sous la barre titre
-	INFO_Y        = -28,      -- ligne RL/Ass/Fil sous le séparateur
+	SEP_Y         = -18,      -- s\195\169parateur juste sous la barre titre
+	INFO_Y        = -28,      -- ligne RL/Ass/Fil sous le s\195\169parateur
 	COL_LABEL_Y   = -44,      -- labels "Inscrits" / "Groupes de Raid"
 	ROW1_Y        = -66,
 	ROW2_Y        = -182,     -- ROW1_Y(-66) - GRP_H(108) - ROW_GAP(8)
@@ -66,7 +66,7 @@ local K = {
 	SR_Y          = -316,     -- ligne SR (raidres URL)
 	RF_Y          = -336,     -- ligne RF sous SR
 	RH_Y          = -356,     -- ligne RH Plan sous RF
-	STATUS_Y      = -394,    -- décalé pour SR + RF + RH
+	STATUS_Y      = -394,    -- d\195\169cal\195\169 pour SR + RF + RH
 }
 
 local popup = nil
@@ -135,9 +135,9 @@ local function apply_position(f)
 
 	if not pos then
 		local candidates = {
-			m.event_popup and m.event_popup.frame,
-			m.LocalEventPopup and m.LocalEventPopup.frame,
-			m.EventManagePopup and m.EventManagePopup.frame,
+			m.event_popup and m.event_popup.get_frame and m.event_popup.get_frame(),
+			m.LocalEventPopup and m.LocalEventPopup.get_frame and m.LocalEventPopup.get_frame(),
+			m.EventManagePopup and m.EventManagePopup.get_frame and m.EventManagePopup.get_frame(),
 		}
 		for i = 1, table.getn(candidates) do
 			local cf = candidates[i]
@@ -330,6 +330,56 @@ local function clear_remote()
 	m.msg.group_plan_clear(event_id, (m.db and m.db.user_settings and m.db.user_settings.discord_id) or "")
 end
 
+local function normalize_signup_text( value )
+	if not value then return "" end
+	value = tostring( value )
+	value = string.gsub( value, "^%s+", "" )
+	value = string.gsub( value, "%s+$", "" )
+	value = string.lower( value )
+	return value
+end
+
+local function signup_bucket( signup )
+	local status = normalize_signup_text( signup and signup.status )
+	local class_name = normalize_signup_text( signup and signup.className )
+	local role_name = normalize_signup_text( signup and signup.roleName )
+	local value = status
+	if value == "" then value = class_name end
+	if value == "" then value = role_name end
+
+	if value == "bench" or value == "remplaçant" or value == "remplacant"
+		or value == "late" or value == "retard" then
+		return "secondary"
+	end
+
+	if value == "absence" or value == "absent"
+		or value == "tentative" or value == "incertain" or value == "uncertain" then
+		return "hidden"
+	end
+
+	if value == "signup" or value == "inscription" or value == "confirmé" or value == "confirme"
+		or value == "confirmed" then
+		return "primary"
+	end
+
+	if class_name ~= "" and class_name ~= "bench" and class_name ~= "remplaçant" and class_name ~= "remplacant"
+		and class_name ~= "late" and class_name ~= "retard"
+		and class_name ~= "absence" and class_name ~= "absent"
+		and class_name ~= "tentative" and class_name ~= "incertain" and class_name ~= "uncertain" then
+		return "primary"
+	end
+
+	return "hidden"
+end
+
+local function is_primary_signup_status( signup )
+	return signup_bucket( signup ) == "primary"
+end
+
+local function is_secondary_signup_status( signup )
+	return signup_bucket( signup ) == "secondary"
+end
+
 local function build()
 	local gui = m.GuiElements
 
@@ -380,58 +430,69 @@ local function build()
 	f.lbl_raid_info:SetTextColor(0.75, 0.75, 0.75, 1)
 	f.lbl_raid_info:SetText("")
 
-	lbl(f, T("group_popup.available") or "Available players", K.LEFT_X,  K.COL_LABEL_Y)
-	lbl(f, T("group_popup.groups_title") or "Raid Groups",    K.RIGHT_X, K.COL_LABEL_Y)
+	local LEFT_TOP_LABEL_Y = K.COL_LABEL_Y
+	local LEFT_TOP_TOP_Y = K.ROW1_Y
+	local LEFT_TOP_BOTTOM_Y = -188
+	local LEFT_BOTTOM_LABEL_Y = -198
+	local LEFT_BOTTOM_TOP_Y = -220
+	local LEFT_BOTTOM_BOTTOM_Y = K.CONTENT_BOT_Y
 
-	local lbg = f:CreateTexture(nil, "BACKGROUND")
-	lbg:SetTexture("Interface\\Buttons\\WHITE8x8")
-	lbg:SetVertexColor(0.04, 0.04, 0.04, 1)
-	lbg:SetPoint("TOPLEFT", f, "TOPLEFT", K.LEFT_X, K.ROW1_Y)
-	lbg:SetPoint("BOTTOMRIGHT", f, "TOPLEFT", K.LEFT_X + K.LEFT_W, K.CONTENT_BOT_Y)
+	lbl(f, T("group_popup.available_primary") or T("group_popup.available") or "Signups", K.LEFT_X, LEFT_TOP_LABEL_Y)
+	lbl(f, T("group_popup.available_secondary") or "Bench / Late", K.LEFT_X, LEFT_BOTTOM_LABEL_Y)
+	lbl(f, T("group_popup.groups_title") or "Raid Groups", K.RIGHT_X, K.COL_LABEL_Y)
 
-	local scroll = CreateFrame("ScrollFrame", "RCGroupScroll", f)
-	scroll:SetPoint("TOPLEFT", f, "TOPLEFT", K.LEFT_X, K.ROW1_Y)
-	scroll:SetPoint("BOTTOMRIGHT", f, "TOPLEFT", K.LEFT_X + K.LEFT_W - 14, K.CONTENT_BOT_Y)
+	local function create_player_list(name_prefix, top_y, bottom_y)
+		local bg = f:CreateTexture(nil, "BACKGROUND")
+		bg:SetTexture("Interface\\Buttons\\WHITE8x8")
+		bg:SetVertexColor(0.04, 0.04, 0.04, 1)
+		bg:SetPoint("TOPLEFT", f, "TOPLEFT", K.LEFT_X, top_y)
+		bg:SetPoint("BOTTOMRIGHT", f, "TOPLEFT", K.LEFT_X + K.LEFT_W, bottom_y)
 
-	local sc = CreateFrame("Frame", nil, scroll)
-	sc:SetWidth(K.LEFT_W - 20)
-	sc:SetHeight(400)
-	scroll:SetScrollChild(sc)
-	f.list_content = sc
+		local scroll = CreateFrame("ScrollFrame", name_prefix .. "Scroll", f)
+		scroll:SetPoint("TOPLEFT", f, "TOPLEFT", K.LEFT_X, top_y)
+		scroll:SetPoint("BOTTOMRIGHT", f, "TOPLEFT", K.LEFT_X + K.LEFT_W - 14, bottom_y)
 
-	local sbtrack = f:CreateTexture(nil, "BACKGROUND")
-	sbtrack:SetTexture("Interface\\Buttons\\WHITE8x8")
-	sbtrack:SetVertexColor(0.1, 0.08, 0.01, 1)
-	sbtrack:SetPoint("TOPLEFT", f, "TOPLEFT", K.LEFT_X + K.LEFT_W - 13, K.ROW1_Y)
-	sbtrack:SetPoint("BOTTOMRIGHT", f, "TOPLEFT", K.LEFT_X + K.LEFT_W, K.CONTENT_BOT_Y)
+		local sc = CreateFrame("Frame", nil, scroll)
+		sc:SetWidth(K.LEFT_W - 20)
+		sc:SetHeight(400)
+		scroll:SetScrollChild(sc)
 
-	local sb = CreateFrame("Slider", "RCGroupSlider", f)
-	sb:SetWidth(11)
-	sb:SetPoint("TOPLEFT", f, "TOPLEFT", K.LEFT_X + K.LEFT_W - 12, K.ROW1_Y)
-	sb:SetPoint("BOTTOMLEFT", f, "TOPLEFT", K.LEFT_X + K.LEFT_W - 12, K.CONTENT_BOT_Y)
-	sb:SetOrientation("VERTICAL")
-	sb:SetMinMaxValues(0, 0)
-	sb:SetValue(0)
-	sb:SetValueStep(20)
-	sb:SetThumbTexture("Interface\\Buttons\\WHITE8x8")
-	if sb:GetThumbTexture() then
-		sb:GetThumbTexture():SetVertexColor(1, 0.82, 0, 0.85)
-		sb:GetThumbTexture():SetHeight(28)
+		local track = f:CreateTexture(nil, "BACKGROUND")
+		track:SetTexture("Interface\\Buttons\\WHITE8x8")
+		track:SetVertexColor(0.1, 0.08, 0.01, 1)
+		track:SetPoint("TOPLEFT", f, "TOPLEFT", K.LEFT_X + K.LEFT_W - 13, top_y)
+		track:SetPoint("BOTTOMRIGHT", f, "TOPLEFT", K.LEFT_X + K.LEFT_W, bottom_y)
+
+		local slider = CreateFrame("Slider", name_prefix .. "Slider", f)
+		slider:SetWidth(11)
+		slider:SetPoint("TOPLEFT", f, "TOPLEFT", K.LEFT_X + K.LEFT_W - 12, top_y)
+		slider:SetPoint("BOTTOMLEFT", f, "TOPLEFT", K.LEFT_X + K.LEFT_W - 12, bottom_y)
+		slider:SetOrientation("VERTICAL")
+		slider:SetMinMaxValues(0, 0)
+		slider:SetValue(0)
+		slider:SetValueStep(20)
+		slider:SetThumbTexture("Interface\\Buttons\\WHITE8x8")
+		if slider:GetThumbTexture() then
+			slider:GetThumbTexture():SetVertexColor(1, 0.82, 0, 0.85)
+			slider:GetThumbTexture():SetHeight(28)
+		end
+
+		slider:SetScript("OnValueChanged", function()
+			scroll:SetVerticalScroll(slider:GetValue())
+		end)
+		scroll:EnableMouseWheel(true)
+		scroll:SetScript("OnMouseWheel", function()
+			local mn, mx = slider:GetMinMaxValues()
+			local nv = slider:GetValue() - arg1 * 40
+			if nv < mn then nv = mn elseif nv > mx then nv = mx end
+			slider:SetValue(nv)
+		end)
+
+		return { scroll = scroll, content = sc, slider = slider, buttons = {} }
 	end
-	f.list_slider = sb
 
-	sb:SetScript("OnValueChanged", function()
-		scroll:SetVerticalScroll(sb:GetValue())
-	end)
-	scroll:EnableMouseWheel(true)
-	scroll:SetScript("OnMouseWheel", function()
-		local mn, mx = sb:GetMinMaxValues()
-		local nv = sb:GetValue() - arg1 * 40
-		if nv < mn then nv = mn elseif nv > mx then nv = mx end
-		sb:SetValue(nv)
-	end)
-
-	f.player_btns = {}
+	f.primary_list = create_player_list("RCGroupPrimary", LEFT_TOP_TOP_Y, LEFT_TOP_BOTTOM_Y)
+	f.secondary_list = create_player_list("RCGroupSecondary", LEFT_BOTTOM_TOP_Y, LEFT_BOTTOM_BOTTOM_Y)
 	f.slots = {}
 	for g = 1, GROUPS do f.slots[g] = {} end
 
@@ -533,7 +594,7 @@ local function build()
 	f.lbl_sr = f:CreateFontString(nil, "OVERLAY", "RCFontNormalSmall")
 	f.lbl_sr:SetPoint("TOPLEFT", f, "TOPLEFT", 14, K.SR_Y)
 	f.lbl_sr:SetTextColor(1, 0.82, 0, 1)
-	f.lbl_sr:SetText(T("group_popup.sr_label") or "SR :")
+	f.lbl_sr:SetText(T("ui.sr_link") or "SR:")
 	f.lbl_sr:Hide()
 
 	local sr_box = CreateFrame("EditBox", nil, f)
@@ -621,7 +682,7 @@ local function build()
 	f.btn_clear = gui.create_button(f, T("group_popup.clear") or "Clear plan", 90, function()
 		clear_plan_local()
 		selected = nil
-		set_sync_state("idle", T("group_popup.status_local_only") or "Local plan changed — synchronization in progress...", nil, nil, nil, nil)
+		set_sync_state("idle", T("group_popup.status_local_only") or "Local plan changed \226\128\148 synchronization in progress...", nil, nil, nil, nil)
 		M.update()
 		save_remote()
 	end)
@@ -634,7 +695,7 @@ local function build()
 		clear_plan_local()
 		local g, s = 1, 1
 		for _, su in pairs(ev.signUps or {}) do
-			if su.name and su.status ~= "Absence" then
+			if su.name and is_primary_signup_status( su ) then
 				get_group_plan_store()[event_id][g] = get_group_plan_store()[event_id][g] or {}
 				get_group_plan_store()[event_id][g][s] = su.name
 				s = s + 1
@@ -739,7 +800,7 @@ update_group_thread_ui = function()
 			popup.lbl_raid_info:SetText(txt)
 			popup.lbl_raid_info:SetTextColor(0.85, 0.85, 0.85, 1)
 		else
-			popup.lbl_raid_info:SetText("RL: " .. (T("group_popup.raid_lead_unknown") or "not set"))
+			popup.lbl_raid_info:SetText((T("group_popup.raid_lead") or "RL") .. ": " .. (T("group_popup.raid_lead_unknown") or "not set"))
 			popup.lbl_raid_info:SetTextColor(0.55, 0.55, 0.55, 1)
 		end
 	end
@@ -771,6 +832,57 @@ local function on_player_button_click()
 	local cap = this and this.player_name
 	selected = (selected == cap) and nil or cap
 	M.update()
+end
+
+local function update_player_list( list_frame, entries )
+	if not list_frame then return end
+	for _, btn in ipairs( list_frame.buttons or {} ) do btn:Hide() end
+
+	local sc = list_frame.content
+	local pool = list_frame.buttons
+	local yo = 0
+
+	for i = 1, getn( entries ) do
+		local su = entries[ i ]
+		local btn = pool[ i ]
+		if not btn then
+			btn = CreateFrame("Button", nil, sc)
+			btn:SetHeight(20)
+			btn:SetWidth(K.LEFT_W - 22)
+			local bbg = btn:CreateTexture(nil, "BACKGROUND")
+			bbg:SetAllPoints(btn)
+			bbg:SetTexture("Interface\\Buttons\\WHITE8x8")
+			btn.bg = bbg
+			local bfs = btn:CreateFontString(nil, "OVERLAY", "RCFontNormalSmall")
+			bfs:SetPoint("LEFT", btn, "LEFT", 4, 0)
+			bfs:SetWidth(K.LEFT_W - 30)
+			bfs:SetJustifyH("LEFT")
+			btn.name_fs = bfs
+			btn:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
+			pool[ i ] = btn
+		end
+		btn:SetPoint("TOPLEFT", sc, "TOPLEFT", 0, -yo)
+		local r, g, b = cc(su.className)
+		btn.name_fs:SetText(su.name or "?")
+		btn.name_fs:SetTextColor(r, g, b)
+		if selected == su.name then
+			btn.bg:SetVertexColor(0.25, 0.20, 0.02, 1)
+		elseif math.mod(i, 2) == 0 then
+			btn.bg:SetVertexColor(0.07, 0.07, 0.07, 1)
+		else
+			btn.bg:SetVertexColor(0.03, 0.03, 0.03, 1)
+		end
+		btn.player_name = su.name
+		btn:SetScript("OnClick", on_player_button_click)
+		btn:Show()
+		yo = yo + 20
+	end
+
+	local sh = list_frame.scroll:GetHeight()
+	sc:SetHeight(math.max(yo, sh))
+	local mx = math.max(0, yo - sh)
+	list_frame.slider:SetMinMaxValues(0, mx)
+	if list_frame.slider:GetValue() > mx then list_frame.slider:SetValue(mx) end
 end
 
 local function refresh()
@@ -846,63 +958,29 @@ local function refresh()
 		end
 	end
 
-	for _, btn in ipairs(popup.player_btns) do btn:Hide() end
-
-	local available = {}
+	local available_primary = {}
+	local available_secondary = {}
 	for _, su in pairs(ev.signUps or {}) do
-		if su.name and su.status ~= "Absence" and not placed[su.name] then
-			table.insert(available, su)
+		if su.name and not placed[su.name] then
+			if is_primary_signup_status( su ) then
+				table.insert( available_primary, su )
+			elseif is_secondary_signup_status( su ) then
+				table.insert( available_secondary, su )
+			end
 		end
 	end
-	table.sort(available, function(a, b)
+
+	local function sort_available(a, b)
 		if (a.className or "") ~= (b.className or "") then
 			return (a.className or "") < (b.className or "")
 		end
 		return (a.name or "") < (b.name or "")
-	end)
-
-	local sc, pool, yo = popup.list_content, popup.player_btns, 0
-	for i = 1, getn(available) do
-		local su = available[i]
-		local btn = pool[i]
-		if not btn then
-			btn = CreateFrame("Button", nil, sc)
-			btn:SetHeight(20)
-			btn:SetWidth(K.LEFT_W - 22)
-			local bbg = btn:CreateTexture(nil, "BACKGROUND")
-			bbg:SetAllPoints(btn)
-			bbg:SetTexture("Interface\\Buttons\\WHITE8x8")
-			btn.bg = bbg
-			local bfs = btn:CreateFontString(nil, "OVERLAY", "RCFontNormalSmall")
-			bfs:SetPoint("LEFT", btn, "LEFT", 4, 0)
-			bfs:SetWidth(K.LEFT_W - 30)
-			bfs:SetJustifyH("LEFT")
-			btn.name_fs = bfs
-			btn:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight")
-			pool[i] = btn
-		end
-		btn:SetPoint("TOPLEFT", sc, "TOPLEFT", 0, -yo)
-		local r, g, b = cc(su.className)
-		btn.name_fs:SetText(su.name or "?")
-		btn.name_fs:SetTextColor(r, g, b)
-		if selected == su.name then
-			btn.bg:SetVertexColor(0.25, 0.20, 0.02, 1)
-		elseif math.mod(i, 2) == 0 then
-			btn.bg:SetVertexColor(0.07, 0.07, 0.07, 1)
-		else
-			btn.bg:SetVertexColor(0.03, 0.03, 0.03, 1)
-		end
-		btn.player_name = su.name
-		btn:SetScript("OnClick", on_player_button_click)
-		btn:Show()
-		yo = yo + 20
 	end
+	table.sort( available_primary, sort_available )
+	table.sort( available_secondary, sort_available )
 
-	local sh = popup.list_content:GetParent():GetHeight()
-	sc:SetHeight(math.max(yo, sh))
-	local mx = math.max(0, yo - sh)
-	popup.list_slider:SetMinMaxValues(0, mx)
-	if popup.list_slider:GetValue() > mx then popup.list_slider:SetValue(mx) end
+	update_player_list( popup.primary_list, available_primary )
+	update_player_list( popup.secondary_list, available_secondary )
 
 	for g = 1, GROUPS do
 		for s = 1, SLOTS do
@@ -1002,7 +1080,7 @@ function M.on_rf_data_result( success, rf_data, status )
 	if success and rf_data and rf_data ~= "" then
 		popup.rf_box:SetText(rf_data)
 	else
-		popup.rf_box:SetText(status or "Error")
+		popup.rf_box:SetText(status or T("event_manage.status_failed") or "Error")
 	end
 end
 

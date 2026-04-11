@@ -793,7 +793,7 @@ function M.pfui_skin( frame )
 		safe( m.api.pfUI.api.SkinButton, frame.settings.btn_welcome )
 		if frame.settings.btn_save then frame.settings.btn_save:SetHeight( 22 ) end
 		if frame.settings.btn_welcome then frame.settings.btn_welcome:SetHeight( 22 ) end
-		safe( m.api.pfUI.api.SkinCheckbox, frame.settings.use_char_name )
+		safe( m.api.pfUI.api.SkinCheckbox, frame.settings.show_raid_resets )
 		safe( m.api.pfUI.api.StripTextures, frame.settings.discord, nil, "BACKGROUND" )
 		safe( m.api.pfUI.api.CreateBackdrop, frame.settings.discord, nil, true )
 		if frame.settings.time_format then skin_dropdown( frame.settings.time_format ) end
@@ -821,7 +821,7 @@ function M.pfui_skin( frame )
 		safe( m.api.pfUI.api.SkinButton, frame.settings.btn_welcome )
 		if frame.settings.btn_save then frame.settings.btn_save:SetHeight( 22 ) end
 		if frame.settings.btn_welcome then frame.settings.btn_welcome:SetHeight( 22 ) end
-		safe( m.api.pfUI.api.SkinCheckbox, frame.settings.use_char_name )
+		safe( m.api.pfUI.api.SkinCheckbox, frame.settings.show_raid_resets )
 		if frame.settings.time_format then skin_dropdown( frame.settings.time_format ) end
 		if frame.settings.locale_flag then skin_dropdown( frame.settings.locale_flag ) end
 		if frame.settings.discord then
@@ -841,7 +841,12 @@ function M.pfui_skin( frame )
 			m.api.pfUI.api.SkinButton( frame[ btn ] )
 		end
 
-		frame.btn_invite:SetPoint( "Right", frame.titlebar.btn_close, "Left", -4, 0 )
+		-- Ordre titlebar pfUI (droite → gauche) : X | BotStatus | SR | E | G | I
+		if frame.btn_sr     then safe( m.api.pfUI.api.SkinButton, frame.btn_sr ) end
+		if frame.btn_manage then safe( m.api.pfUI.api.SkinButton, frame.btn_manage ) end
+		if frame.btn_groups then safe( m.api.pfUI.api.SkinButton, frame.btn_groups ) end
+		if frame.btn_invite then safe( m.api.pfUI.api.SkinButton, frame.btn_invite ) end
+		-- Les anchors sont déjà corrects depuis EventPopup.lua (recréés avant pfUI_skin)
 
 		m.api.pfUI.api.SkinButton( frame.cs_change )
 		m.api.pfUI.api.SkinButton( frame.cs_cancel )
@@ -951,9 +956,6 @@ function M.pfui_skin( frame )
 	end
 
 	if name == "RaidCalendarGroupPopup" then
-		if frame.btn_apply    then m.api.pfUI.api.SkinButton( frame.btn_apply    ); frame.btn_apply:SetHeight( 22 )    end
-		if frame.btn_save     then m.api.pfUI.api.SkinButton( frame.btn_save     ); frame.btn_save:SetHeight( 22 )     end
-		if frame.btn_reload      then m.api.pfUI.api.SkinButton( frame.btn_reload      ); frame.btn_reload:SetHeight( 22 )      end
 		if frame.btn_clear       then m.api.pfUI.api.SkinButton( frame.btn_clear       ); frame.btn_clear:SetHeight( 22 )       end
 		if frame.btn_auto        then m.api.pfUI.api.SkinButton( frame.btn_auto        ); frame.btn_auto:SetHeight( 22 )        end
 		if frame.btn_announce    then m.api.pfUI.api.SkinButton( frame.btn_announce    ); frame.btn_announce:SetHeight( 22 )    end

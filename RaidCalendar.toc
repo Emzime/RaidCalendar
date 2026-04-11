@@ -11,6 +11,10 @@ libs\Libs.xml
 Localization.lua
 locale\enUS.lua
 locale\frFR.lua
+locale\deDE.lua
+locale\esES.lua
+locale\ruRU.lua
+locale\ptBR.lua
 Utils.lua
 LootTable.lua
 GuiElements.lua

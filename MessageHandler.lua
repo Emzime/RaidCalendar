@@ -213,6 +213,16 @@ function M.new()
 		updatedAt           = "updatedAt",
 		planEncoded         = "planEncoded",
 		targetPlayer        = "targetPlayer",
+		-- Champs GROUP_THREAD_RESULT (pass-through explicite)
+		managerPlayer           = "managerPlayer",
+		managerDiscordUserId    = "managerDiscordUserId",
+		assistantPlayer         = "assistantPlayer",
+		assistantDiscordUserId  = "assistantDiscordUserId",
+		threadId                = "threadId",
+		threadTitle             = "threadTitle",
+		groupKey                = "groupKey",
+		-- Champ RF_DATA_RESULT
+		rfData                  = "rfData",
 	}
 
 	local EVENT_REQUEST_MIN_INTERVAL = 5
@@ -852,7 +862,7 @@ function M.new()
 				m.sr_popup.update( event_id )
 				m.calendar_popup.update()
 			elseif data.player == m.player then
-				m.error( "Adding SR failed: " .. (data.status or "Unknown error") )
+				m.error( (m.L("ui.sr_add_failed") or "Adding SR failed") .. ": " .. (data.status or (m.L("ui.error_unknown") or "Unknown error")) )
 			end
 		elseif command == MessageCommand.DeleteSRResult then
 			--
@@ -874,7 +884,7 @@ function M.new()
 					end
 				end
 			elseif data.player == m.player then
-				m.error( "Delete SR failed: " .. (data.status or "Unknown error") )
+				m.error( (m.L("ui.sr_delete_failed") or "Delete SR failed") .. ": " .. (data.status or (m.L("ui.error_unknown") or "Unknown error")) )
 			end
 		elseif command == MessageCommand.LockSRResult then
 			--
@@ -889,7 +899,7 @@ function M.new()
 
 				m.sr_popup.update()
 			elseif data.player == m.player then
-				m.error( "Lock SR failed: " .. (data.status or "Unknown error") )
+				m.error( (m.L("ui.sr_lock_failed") or "Lock SR failed") .. ": " .. (data.status or (m.L("ui.error_unknown") or "Unknown error")) )
 			end
 		elseif command == MessageCommand.Event then
 			--
@@ -987,12 +997,18 @@ function M.new()
 			if data.success and m.db.events[ data.eventId ] then
 				if data.signUp then
 					local _, index = m.find( data.signUp.id, m.db.events[ data.eventId ].signUps, "id" )
+					local is_new_signup = not index  -- première inscription (pas un changement de statut)
 
 					m.db.events[ data.eventId ].lastUpdated = tonumber( data.lastUpdated )
 					if index then
 						m.db.events[ data.eventId ].signUps[ index ] = data.signUp
 					else
 						table.insert( m.db.events[ data.eventId ].signUps, data.signUp )
+					end
+
+					-- Ouvrir automatiquement la SR popup si première inscription sur un event raidres
+					if is_new_signup and data.player == m.player and m.db.events[ data.eventId ].srId and m.sr_popup then
+						m.sr_popup.show( data.eventId )
 					end
 				else
 					-- signUp absent dans la réponse, on redemande l'event complet
@@ -1002,7 +1018,7 @@ function M.new()
 				m.calendar_popup.update()
 				m.event_popup.update( data.eventId )
 			elseif data.player == m.player then
-				m.error( "Signup failed: " .. ( data.status or "Unknown error" ) )
+				m.error( (m.L("ui.signup_failed") or "Signup failed") .. ": " .. (data.status or (m.L("ui.error_unknown") or "Unknown error")) )
 			end
 		elseif command == MessageCommand.BotStatus then
 			--
@@ -1039,6 +1055,9 @@ function M.new()
 		if data.player == m.player then
 			if m.GroupPopup and m.GroupPopup.on_rf_data_result then
 				m.GroupPopup.on_rf_data_result( data.success == true, data.rfData, data.status )
+			end
+			if m.EventManagePopup and m.EventManagePopup.on_rf_data_result then
+				m.EventManagePopup.on_rf_data_result( data.success == true, data.rfData, data.status )
 			end
 		end
 	elseif command == MessageCommand.CreateEventResult then
@@ -1207,6 +1226,10 @@ function M.new()
 		if data.player == m.player then
 			if m.db then
 				m.db.user_settings.has_member_role = data.success == true
+				-- Rafraîchir LocalEventPopup si ouvert
+				if m.LocalEventPopup and m.LocalEventPopup.refresh_current then
+					m.LocalEventPopup.refresh_current()
+				end
 				m.db.user_settings.role_check_debug = {
 					character = data.character,
 					linked_user_id = data.linkedUserId,
@@ -1218,6 +1241,20 @@ function M.new()
 				m.EventManagePopup.on_member_role_result( data.success == true, data.status, data.linkedUserId, data.requestedUserId, data.character )
 			end
 		end
+	elseif command == MessageCommand.RaiderRoleResult then
+		--
+		-- RAIDER_ROLE_RESULT — rôle inscription events Raid-Helper
+		--
+		if data.player == m.player then
+			if m.db then
+				m.db.user_settings.has_raider_role = data.success == true
+			end
+			-- Rafraîchir EventPopup si ouvert
+			if m.EventPopup and m.EventPopup.refresh_current then
+				m.EventPopup.refresh_current()
+			end
+		end
+
 	elseif command == MessageCommand.RaidRoleResult then
 		--
 		-- RAID_ROLE_RESULT
@@ -1278,8 +1315,8 @@ function M.new()
 			if not m.db.user_settings.last_versioncheck or time() - m.db.user_settings.last_versioncheck > 3600 * 24 then
 				m.db.user_settings.last_versioncheck = time()
 				if m.is_new_version( m.version, data.version ) then
-					m.info( string.format( "New version (%s) is available!", data.version ) )
-					m.info( "https://github.com/sica42/RaidCalendar" )
+					m.info( m.L("ui.update_available", { version = data.version }) or string.format("New version (%s) is available!", data.version) )
+					m.info( m.L("ui.update_url") or "https://github.com/sica42/RaidCalendar" )
 				end
 			end
 		end
@@ -1399,7 +1436,7 @@ end
 						local ok_cmd, cmd_err = pcall( on_command, cmd, lua_data, sender )
 						if not ok_cmd then m.debug( "RCERROR in handler [" .. tostring(cmd) .. "]: " .. tostring(cmd_err) ) end
 					else
-						m.error( "RCERROR [chunked " .. tostring(cmd) .. "]: Invalid data" )
+						m.error( "RCERROR [chunked " .. tostring(cmd) .. "]: " .. (m.L("ui.errcode_invalid_data") or "Invalid data") )
 						if parse_error then
 							m.debug( "Parse error: " .. tostring( parse_error ) )
 						end
@@ -1412,7 +1449,7 @@ end
 					local ok_cmd, cmd_err = pcall( on_command, command, lua_data, sender )
 					if not ok_cmd then m.debug( "RCERROR in handler [" .. tostring(command) .. "]: " .. tostring(cmd_err) ) end
 				else
-					m.error( "RCERROR [" .. tostring(command) .. "]: Invalid data" )
+					m.error( "RCERROR [" .. tostring(command) .. "]: " .. (m.L("ui.errcode_invalid_data") or "Invalid data") )
 					if parse_error then
 						m.debug( "Parse error: " .. tostring( parse_error ) )
 					end

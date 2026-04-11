@@ -37,6 +37,15 @@ function M.new()
 	local days_per_week = 7
 	local weeks = 6
 	local max_cell_events = 3
+	local PFUI_CELL_BORDER = { r = 0.46, g = 0.34, b = 0.11, a = 0.98 }
+	local PFUI_CELL_BORDER_DIM = { r = 0.24, g = 0.18, b = 0.07, a = 0.88 }
+	local PFUI_CELL_BORDER_TODAY = { r = 0.82, g = 0.66, b = 0.20, a = 1 }
+	local PFUI_CELL_INNER_HIGHLIGHT = { r = 0.95, g = 0.82, b = 0.38, a = 0.42 }
+	local PFUI_CELL_INNER_HIGHLIGHT_DIM = { r = 0.58, g = 0.46, b = 0.18, a = 0.20 }
+	local PFUI_CELL_INNER_HIGHLIGHT_TODAY = { r = 1, g = 0.90, b = 0.52, a = 0.65 }
+	local PFUI_CELL_INNER_SHADOW = { r = 0.09, g = 0.06, b = 0.02, a = 0.90 }
+	local PFUI_CELL_INNER_SHADOW_DIM = { r = 0.05, g = 0.04, b = 0.01, a = 0.82 }
+	local PFUI_CELL_INNER_SHADOW_TODAY = { r = 0.16, g = 0.10, b = 0.02, a = 0.92 }
 
 	local function set_shown( frame, visible )
 		if not frame then
@@ -243,8 +252,6 @@ function M.new()
 
 	local function refresh_settings_labels()
 		if not popup or not popup.settings then return end
-		popup.btn_refresh.tooltip = m.L( "ui.refresh" )
-		popup.btn_settings.tooltip = m.L( "ui.settings" )
 		popup.btn_today:SetText( m.L( "actions.today" ) )
 		popup.detail_panel.header:SetText( m.L( "ui.month_events" ) )
 		popup.detail_panel.empty:SetText( m.L( "ui.no_events_month" ) )
@@ -255,13 +262,16 @@ function M.new()
 		popup.settings.btn_save:SetText( m.L( "actions.save" ) )
 		popup.settings.btn_welcome:SetText( m.L( "actions.welcome_popup" ) )
 		popup.settings.btn_disconnect:SetText( m.L( "actions.disconnect" ) )
+		if popup.settings.show_raid_resets then
+			getglobal( popup.settings.show_raid_resets:GetName() .. "Text" ):SetText( m.L( "ui.show_raid_resets" ) )
+		end
 		popup.settings.time_format:SetItems( {
 			{ value = "24", text = m.L( "options.time_format_24" ) },
 			{ value = "12", text = m.L( "options.time_format_12" ) }
 		} )
-		popup.settings.locale_flag:SetItems( {
+		popup.settings.locale_flag:SetItems( (m.get_available_locales and m.get_available_locales()) or {
 			{ value = "enUS", text = m.locale_native_name and m.locale_native_name( "enUS" ) or "English" },
-			{ value = "frFR", text = m.locale_native_name and m.locale_native_name( "frFR" ) or "Francais" }
+			{ value = "frFR", text = m.locale_native_name and m.locale_native_name( "frFR" ) or "Fran\195\167ais" }
 		} )
 	end
 
@@ -278,9 +288,11 @@ function M.new()
 		local previous_time_format = m.db.user_settings.time_format
 		local locale_changed = selected_locale_flag ~= previous_locale_flag
 		local tf_manually_changed = selected_time_format ~= previous_time_format
+		local selected_reset_icons = (popup.settings.show_raid_resets and popup.settings.show_raid_resets:GetChecked()) and 1 or 0
 
 		-- use_character_name est force a 1 (case a cocher supprimee)
 		m.db.user_settings.use_character_name = 1
+		m.db.user_settings.show_raid_reset_icons = selected_reset_icons
 		m.db.user_settings.time_format = selected_time_format
 		m.db.user_settings.locale_flag = selected_locale_flag
 		m.db.user_settings.ui_theme = theme_to_apply
@@ -526,6 +538,8 @@ function M.new()
 		end
 	end
 
+	local hide_reset_icon_slots, ensure_reset_icon_slot, render_reset_icons
+
 	local function refresh_day_cells()
 		local month_info, month_time = get_month_info( current_month_time or get_today() )
 		local grid_start = get_month_grid_start( month_time )
@@ -543,6 +557,7 @@ function M.new()
 			local is_selected = selected_day and selected_day == day_time
 
 			cell.day_time = day_time
+			cell.raid_resets = m.get_raid_resets_for_day( day_time )
 			cell.day_number:SetText( tostring( day_info.day ) )
 			local column = mod( i - 1, days_per_week ) + 1
 			if is_current_month then
@@ -557,9 +572,44 @@ function M.new()
 				cell.day_number:SetTextColor( 0.45, 0.45, 0.45 )
 			end
 			cell.bg:SetVertexColor( is_current_month and 0.07 or 0.035, is_current_month and 0.07 or 0.035, is_current_month and 0.09 or 0.05, 0.95 )
+			local border = PFUI_CELL_BORDER
+			local inner_highlight = PFUI_CELL_INNER_HIGHLIGHT
+			local inner_shadow = PFUI_CELL_INNER_SHADOW
+			if is_today then
+				border = PFUI_CELL_BORDER_TODAY
+				inner_highlight = PFUI_CELL_INNER_HIGHLIGHT_TODAY
+				inner_shadow = PFUI_CELL_INNER_SHADOW_TODAY
+			elseif not is_current_month then
+				border = PFUI_CELL_BORDER_DIM
+				inner_highlight = PFUI_CELL_INNER_HIGHLIGHT_DIM
+				inner_shadow = PFUI_CELL_INNER_SHADOW_DIM
+			end
+			cell.border_top:SetVertexColor( border.r, border.g, border.b, border.a )
+			cell.border_left:SetVertexColor( border.r, border.g, border.b, border.a )
+			cell.border_right:SetVertexColor( border.r, border.g, border.b, border.a )
+			cell.border_bottom:SetVertexColor( border.r, border.g, border.b, border.a )
+			cell.inner_top:SetVertexColor( inner_highlight.r, inner_highlight.g, inner_highlight.b, inner_highlight.a )
+			cell.inner_left:SetVertexColor( inner_highlight.r, inner_highlight.g, inner_highlight.b, inner_highlight.a )
+			cell.inner_right:SetVertexColor( inner_shadow.r, inner_shadow.g, inner_shadow.b, inner_shadow.a )
+			cell.inner_bottom:SetVertexColor( inner_shadow.r, inner_shadow.g, inner_shadow.b, inner_shadow.a )
 
-			set_shown( cell.today_glow, is_today )
-			set_shown( cell.selected_overlay, is_selected )
+			if (not m.should_show_raid_reset_icons or m.should_show_raid_reset_icons()) and cell.raid_resets and getn( cell.raid_resets ) > 0 then
+				local visuals = m.get_raid_reset_day_visuals and m.get_raid_reset_day_visuals( cell.raid_resets ) or nil
+				render_reset_icons( cell, visuals, is_current_month )
+			else
+				hide_reset_icon_slots( cell )
+			end
+			cell.reset_bg:Hide()
+			cell.reset_dim:Hide()
+			cell.reset_ribbon:Hide()
+			cell.reset_border_top:Hide()
+			cell.reset_border_left:Hide()
+			set_shown( cell.today_glow_top, is_today )
+			set_shown( cell.today_glow_left, is_today )
+			set_shown( cell.selected_top, is_selected )
+			set_shown( cell.selected_left, is_selected )
+			set_shown( cell.selected_right, is_selected )
+			set_shown( cell.selected_bottom, is_selected )
 
 			cell.event_count:SetText( "" )
 
@@ -578,6 +628,9 @@ function M.new()
 					event_data = m.db.events[ item.key ]
 				end
 				local chip = cell.events[ j ]
+				local icon_offset = (cell.reset_icon_rows and cell.reset_icon_rows > 0) and (cell.reset_icon_rows * 15) or 0
+				chip:ClearAllPoints()
+				chip:SetPoint( "TopLeft", cell, "TopLeft", 4, -(22 + icon_offset + ((j - 1) * 11)) )
 				if event_data then
 					local color
 					-- Couleur violette pour les events locaux, sinon cache RGB de l'event
@@ -598,6 +651,9 @@ function M.new()
 			end
 
 			if getn( day_events ) > max_cell_events then
+				local icon_offset = (cell.reset_icon_rows and cell.reset_icon_rows > 0) and (cell.reset_icon_rows * 15) or 0
+				cell.more_label:ClearAllPoints()
+				cell.more_label:SetPoint( "TopRight", cell, "TopRight", -5, -(18 + icon_offset) )
 				cell.more_label:SetText( "+" .. tostring( getn( day_events ) - max_cell_events ) )
 				cell.more_label:Show()
 			end
@@ -628,6 +684,9 @@ function M.new()
 
 		popup.settings.time_format:SetSelected( (popup.settings:IsVisible() and pending_time_format) or m.db.user_settings.time_format )
 		popup.settings.locale_flag:SetSelected( (popup.settings:IsVisible() and pending_locale_flag) or (m.db.user_settings.locale_flag or "enUS") )
+		if popup.settings.show_raid_resets then
+			popup.settings.show_raid_resets:SetChecked( m.db.user_settings.show_raid_reset_icons == 1 )
+		end
 
 
 		refresh_data()
@@ -643,22 +702,22 @@ function M.new()
 	local function create_chip( parent, width )
 		local chip = CreateFrame( "Button", nil, parent )
 		chip:SetWidth( width )
-		chip:SetHeight( 10 )
+		chip:SetHeight( 12 )
 		chip:SetHighlightTexture( "Interface\\QuestFrame\\UI-QuestTitleHighlight" )
 
 		chip.bg = chip:CreateTexture( nil, "BACKGROUND" )
 		chip.bg:SetTexture( "Interface\\Buttons\\WHITE8x8" )
 		chip.bg:SetAllPoints( chip )
-		chip.bg:SetVertexColor( 0.12, 0.12, 0.12, 0.95 )
+		chip.bg:SetVertexColor( 0.04, 0.04, 0.04, 0.96 )
 
 		chip.color_bar = chip:CreateTexture( nil, "ARTWORK" )
 		chip.color_bar:SetTexture( "Interface\\Buttons\\WHITE8x8" )
 		chip.color_bar:SetPoint( "TopLeft", chip, "TopLeft", 0, 0 )
 		chip.color_bar:SetPoint( "BottomLeft", chip, "BottomLeft", 0, 0 )
-		chip.color_bar:SetWidth( 2 )
+		chip.color_bar:SetWidth( 5 )
 
 		chip.text = chip:CreateFontString( nil, "ARTWORK", "RCFontNormalSmall" )
-		chip.text:SetPoint( "TopLeft", chip, "TopLeft", 4, -1 )
+		chip.text:SetPoint( "TopLeft", chip, "TopLeft", 7, -1 )
 		chip.text:SetPoint( "Right", chip, "Right", -1, 0 )
 		chip.text:SetJustifyH( "Left" )
 		chip.text:SetTextColor( 0.95, 0.95, 0.95 )
@@ -719,28 +778,56 @@ function M.new()
 		cell.border_top:SetPoint( "TopLeft", cell, "TopLeft", 0, 0 )
 		cell.border_top:SetPoint( "TopRight", cell, "TopRight", 0, 0 )
 		cell.border_top:SetHeight( 1 )
-		cell.border_top:SetVertexColor( 0.2, 0.2, 0.2, 1 )
+		cell.border_top:SetVertexColor( PFUI_CELL_BORDER.r, PFUI_CELL_BORDER.g, PFUI_CELL_BORDER.b, PFUI_CELL_BORDER.a )
 
 		cell.border_left = cell:CreateTexture( nil, "ARTWORK" )
 		cell.border_left:SetTexture( "Interface\\Buttons\\WHITE8x8" )
 		cell.border_left:SetPoint( "TopLeft", cell, "TopLeft", 0, 0 )
 		cell.border_left:SetPoint( "BottomLeft", cell, "BottomLeft", 0, 0 )
 		cell.border_left:SetWidth( 1 )
-		cell.border_left:SetVertexColor( 0.2, 0.2, 0.2, 1 )
+		cell.border_left:SetVertexColor( PFUI_CELL_BORDER.r, PFUI_CELL_BORDER.g, PFUI_CELL_BORDER.b, PFUI_CELL_BORDER.a )
 
 		cell.border_right = cell:CreateTexture( nil, "ARTWORK" )
 		cell.border_right:SetTexture( "Interface\\Buttons\\WHITE8x8" )
 		cell.border_right:SetPoint( "TopRight", cell, "TopRight", 0, 0 )
 		cell.border_right:SetPoint( "BottomRight", cell, "BottomRight", 0, 0 )
 		cell.border_right:SetWidth( 1 )
-		cell.border_right:SetVertexColor( 0.2, 0.2, 0.2, 1 )
+		cell.border_right:SetVertexColor( PFUI_CELL_BORDER.r, PFUI_CELL_BORDER.g, PFUI_CELL_BORDER.b, PFUI_CELL_BORDER.a )
 
 		cell.border_bottom = cell:CreateTexture( nil, "ARTWORK" )
 		cell.border_bottom:SetTexture( "Interface\\Buttons\\WHITE8x8" )
 		cell.border_bottom:SetPoint( "BottomLeft", cell, "BottomLeft", 0, 0 )
 		cell.border_bottom:SetPoint( "BottomRight", cell, "BottomRight", 0, 0 )
 		cell.border_bottom:SetHeight( 1 )
-		cell.border_bottom:SetVertexColor( 0.2, 0.2, 0.2, 1 )
+		cell.border_bottom:SetVertexColor( PFUI_CELL_BORDER.r, PFUI_CELL_BORDER.g, PFUI_CELL_BORDER.b, PFUI_CELL_BORDER.a )
+
+		cell.inner_top = cell:CreateTexture( nil, "ARTWORK" )
+		cell.inner_top:SetTexture( "Interface\\Buttons\\WHITE8x8" )
+		cell.inner_top:SetPoint( "TopLeft", cell, "TopLeft", 1, -1 )
+		cell.inner_top:SetPoint( "TopRight", cell, "TopRight", -1, -1 )
+		cell.inner_top:SetHeight( 1 )
+		cell.inner_top:SetVertexColor( PFUI_CELL_INNER_HIGHLIGHT.r, PFUI_CELL_INNER_HIGHLIGHT.g, PFUI_CELL_INNER_HIGHLIGHT.b, PFUI_CELL_INNER_HIGHLIGHT.a )
+
+		cell.inner_left = cell:CreateTexture( nil, "ARTWORK" )
+		cell.inner_left:SetTexture( "Interface\\Buttons\\WHITE8x8" )
+		cell.inner_left:SetPoint( "TopLeft", cell, "TopLeft", 1, -1 )
+		cell.inner_left:SetPoint( "BottomLeft", cell, "BottomLeft", 1, 1 )
+		cell.inner_left:SetWidth( 1 )
+		cell.inner_left:SetVertexColor( PFUI_CELL_INNER_HIGHLIGHT.r, PFUI_CELL_INNER_HIGHLIGHT.g, PFUI_CELL_INNER_HIGHLIGHT.b, PFUI_CELL_INNER_HIGHLIGHT.a )
+
+		cell.inner_right = cell:CreateTexture( nil, "ARTWORK" )
+		cell.inner_right:SetTexture( "Interface\\Buttons\\WHITE8x8" )
+		cell.inner_right:SetPoint( "TopRight", cell, "TopRight", -1, -1 )
+		cell.inner_right:SetPoint( "BottomRight", cell, "BottomRight", -1, 1 )
+		cell.inner_right:SetWidth( 1 )
+		cell.inner_right:SetVertexColor( PFUI_CELL_INNER_SHADOW.r, PFUI_CELL_INNER_SHADOW.g, PFUI_CELL_INNER_SHADOW.b, PFUI_CELL_INNER_SHADOW.a )
+
+		cell.inner_bottom = cell:CreateTexture( nil, "ARTWORK" )
+		cell.inner_bottom:SetTexture( "Interface\\Buttons\\WHITE8x8" )
+		cell.inner_bottom:SetPoint( "BottomLeft", cell, "BottomLeft", 1, 1 )
+		cell.inner_bottom:SetPoint( "BottomRight", cell, "BottomRight", -1, 1 )
+		cell.inner_bottom:SetHeight( 1 )
+		cell.inner_bottom:SetVertexColor( PFUI_CELL_INNER_SHADOW.r, PFUI_CELL_INNER_SHADOW.g, PFUI_CELL_INNER_SHADOW.b, PFUI_CELL_INNER_SHADOW.a )
 
 		cell.day_number = cell:CreateFontString( nil, "ARTWORK", "RCFontHighlight" )
 		cell.day_number:SetPoint( "TopRight", cell, "TopRight", -5, -4 )
@@ -750,18 +837,53 @@ function M.new()
 		cell.event_count:SetPoint( "TopLeft", cell, "TopLeft", 5, -5 )
 		cell.event_count:SetTextColor( 0.7, 0.7, 0.75 )
 
-		cell.today_glow = cell:CreateTexture( nil, "ARTWORK" )
-		cell.today_glow:SetTexture( "Interface\\Buttons\\WHITE8x8" )
-		cell.today_glow:SetPoint( "TopLeft", cell, "TopLeft", 1, -1 )
-		cell.today_glow:SetPoint( "BottomRight", cell, "BottomRight", -1, 1 )
-		cell.today_glow:SetVertexColor( 0.85, 0.62, 0.15, 0.12 )
-		cell.today_glow:Hide()
+		cell.today_glow_top = cell:CreateTexture( nil, "OVERLAY" )
+		cell.today_glow_top:SetTexture( "Interface\\Buttons\\WHITE8x8" )
+		cell.today_glow_top:SetPoint( "TopLeft", cell, "TopLeft", 1, -1 )
+		cell.today_glow_top:SetPoint( "TopRight", cell, "TopRight", -1, -1 )
+		cell.today_glow_top:SetHeight( 1 )
+		cell.today_glow_top:SetVertexColor( 0.98, 0.82, 0.26, 0.85 )
+		cell.today_glow_top:Hide()
 
-		cell.selected_overlay = cell:CreateTexture( nil, "ARTWORK" )
-		cell.selected_overlay:SetTexture( "Interface\\QuestFrame\\UI-QuestLogTitleHighlight" )
-		cell.selected_overlay:SetAllPoints( cell )
-		cell.selected_overlay:SetVertexColor( 0.2, 0.45, 0.95, 0.22 )
-		cell.selected_overlay:Hide()
+		cell.today_glow_left = cell:CreateTexture( nil, "OVERLAY" )
+		cell.today_glow_left:SetTexture( "Interface\\Buttons\\WHITE8x8" )
+		cell.today_glow_left:SetPoint( "TopLeft", cell, "TopLeft", 1, -1 )
+		cell.today_glow_left:SetPoint( "BottomLeft", cell, "BottomLeft", 1, 1 )
+		cell.today_glow_left:SetWidth( 1 )
+		cell.today_glow_left:SetVertexColor( 0.98, 0.82, 0.26, 0.65 )
+		cell.today_glow_left:Hide()
+
+		cell.selected_top = cell:CreateTexture( nil, "OVERLAY" )
+		cell.selected_top:SetTexture( "Interface\\Buttons\\WHITE8x8" )
+		cell.selected_top:SetPoint( "TopLeft", cell, "TopLeft", 1, -1 )
+		cell.selected_top:SetPoint( "TopRight", cell, "TopRight", -1, -1 )
+		cell.selected_top:SetHeight( 1 )
+		cell.selected_top:SetVertexColor( 0.95, 0.78, 0.22, 0.95 )
+		cell.selected_top:Hide()
+
+		cell.selected_left = cell:CreateTexture( nil, "OVERLAY" )
+		cell.selected_left:SetTexture( "Interface\\Buttons\\WHITE8x8" )
+		cell.selected_left:SetPoint( "TopLeft", cell, "TopLeft", 1, -1 )
+		cell.selected_left:SetPoint( "BottomLeft", cell, "BottomLeft", 1, 1 )
+		cell.selected_left:SetWidth( 1 )
+		cell.selected_left:SetVertexColor( 0.95, 0.78, 0.22, 0.78 )
+		cell.selected_left:Hide()
+
+		cell.selected_right = cell:CreateTexture( nil, "OVERLAY" )
+		cell.selected_right:SetTexture( "Interface\\Buttons\\WHITE8x8" )
+		cell.selected_right:SetPoint( "TopRight", cell, "TopRight", -1, -1 )
+		cell.selected_right:SetPoint( "BottomRight", cell, "BottomRight", -1, 1 )
+		cell.selected_right:SetWidth( 1 )
+		cell.selected_right:SetVertexColor( 0.45, 0.28, 0.05, 0.55 )
+		cell.selected_right:Hide()
+
+		cell.selected_bottom = cell:CreateTexture( nil, "OVERLAY" )
+		cell.selected_bottom:SetTexture( "Interface\\Buttons\\WHITE8x8" )
+		cell.selected_bottom:SetPoint( "BottomLeft", cell, "BottomLeft", 1, 1 )
+		cell.selected_bottom:SetPoint( "BottomRight", cell, "BottomRight", -1, 1 )
+		cell.selected_bottom:SetHeight( 1 )
+		cell.selected_bottom:SetVertexColor( 0.45, 0.28, 0.05, 0.7 )
+		cell.selected_bottom:Hide()
 
 		cell.events = {}
 		for i = 1, max_cell_events do
@@ -776,6 +898,55 @@ function M.new()
 		cell.more_label:SetTextColor( 0.7, 0.7, 0.75 )
 		cell.more_label:Hide()
 
+		cell.reset_bg = cell:CreateTexture( nil, "ARTWORK" )
+		cell.reset_bg:SetPoint( "TopLeft", cell, "TopLeft", 1, -1 )
+		cell.reset_bg:SetPoint( "BottomRight", cell, "BottomRight", -1, 1 )
+		cell.reset_bg:SetTexCoord( 0.08, 0.92, 0.08, 0.92 )
+		cell.reset_bg:Hide()
+
+		cell.reset_dim = cell:CreateTexture( nil, "ARTWORK" )
+		cell.reset_dim:SetTexture( "Interface\\Buttons\\WHITE8x8" )
+		cell.reset_dim:SetPoint( "TopLeft", cell, "TopLeft", 1, -1 )
+		cell.reset_dim:SetPoint( "BottomRight", cell, "BottomRight", -1, 1 )
+		cell.reset_dim:SetVertexColor( 0, 0, 0, 0.5 )
+		cell.reset_dim:Hide()
+
+		cell.reset_ribbon = cell:CreateTexture( nil, "ARTWORK" )
+		cell.reset_ribbon:SetTexture( "Interface\\Buttons\\WHITE8x8" )
+		cell.reset_ribbon:SetPoint( "TopLeft", cell, "TopLeft", 1, -1 )
+		cell.reset_ribbon:SetPoint( "TopRight", cell, "TopRight", -1, -1 )
+		cell.reset_ribbon:SetHeight( 5 )
+		cell.reset_ribbon:Hide()
+
+		cell.reset_border_top = cell:CreateTexture( nil, "OVERLAY" )
+		cell.reset_border_top:SetTexture( "Interface\\Buttons\\WHITE8x8" )
+		cell.reset_border_top:SetPoint( "TopLeft", cell, "TopLeft", 1, -1 )
+		cell.reset_border_top:SetPoint( "TopRight", cell, "TopRight", -1, -1 )
+		cell.reset_border_top:SetHeight( 1 )
+		cell.reset_border_top:SetVertexColor( 1, 0.82, 0, 0.22 )
+		cell.reset_border_top:Hide()
+
+		cell.reset_border_left = cell:CreateTexture( nil, "OVERLAY" )
+		cell.reset_border_left:SetTexture( "Interface\\Buttons\\WHITE8x8" )
+		cell.reset_border_left:SetPoint( "TopLeft", cell, "TopLeft", 1, -1 )
+		cell.reset_border_left:SetPoint( "BottomLeft", cell, "BottomLeft", 1, 1 )
+		cell.reset_border_left:SetWidth( 1 )
+		cell.reset_border_left:SetVertexColor( 1, 0.82, 0, 0.18 )
+		cell.reset_border_left:Hide()
+		cell.reset_icons = {}
+
+		cell:SetScript( "OnEnter", function()
+			if (not m.should_show_raid_reset_icons or m.should_show_raid_reset_icons()) and cell.raid_resets and getn( cell.raid_resets ) > 0 then
+				m.show_raid_reset_tooltip( cell, cell.raid_resets, cell.day_time )
+			end
+		end )
+
+		cell:SetScript( "OnLeave", function()
+			if GameTooltip and GameTooltip:IsOwned( cell ) then
+				GameTooltip:Hide()
+			end
+		end )
+
 		cell:SetScript( "OnClick", function()
 			if not cell.day_time then
 				return
@@ -785,6 +956,79 @@ function M.new()
 		end )
 
 		return cell
+	end
+
+	hide_reset_icon_slots = function( cell )
+		if not cell or not cell.reset_icons then
+			return
+		end
+		cell.reset_icon_rows = 0
+		for i = 1, getn( cell.reset_icons ) do
+			cell.reset_icons[ i ].bg:Hide()
+			cell.reset_icons[ i ].icon:Hide()
+		end
+	end
+
+	ensure_reset_icon_slot = function( cell, index )
+		if not cell.reset_icons then
+			cell.reset_icons = {}
+		end
+		if cell.reset_icons[ index ] then
+			return cell.reset_icons[ index ]
+		end
+
+		local slot = {}
+		slot.bg = cell:CreateTexture( nil, "ARTWORK" )
+		slot.bg:SetTexture( "Interface\\Buttons\\WHITE8x8" )
+		slot.bg:SetVertexColor( 0, 0, 0, 0.44 )
+		slot.bg:SetWidth( 15 )
+		slot.bg:SetHeight( 15 )
+		slot.bg:Hide()
+
+		slot.icon = cell:CreateTexture( nil, "OVERLAY" )
+		slot.icon:SetWidth( 13 )
+		slot.icon:SetHeight( 13 )
+		slot.icon:SetTexCoord( 0.08, 0.92, 0.08, 0.92 )
+		slot.icon:Hide()
+
+		cell.reset_icons[ index ] = slot
+		return slot
+	end
+
+	render_reset_icons = function( cell, visuals, is_current )
+		hide_reset_icon_slots( cell )
+		if type( visuals ) ~= "table" or getn( visuals ) == 0 then
+			return
+		end
+
+		local icons_per_row = 5
+		local max_icons = math.min( getn( visuals ), 10 )
+		local row_count = math.ceil( max_icons / icons_per_row )
+		cell.reset_icon_rows = row_count
+		local start_x = 4
+		local start_y = (row_count > 1) and -14 or -17
+		local step_x = 14
+		local step_y = 15
+
+		for i = 1, max_icons do
+			local visual = visuals[ i ]
+			local slot = ensure_reset_icon_slot( cell, i )
+			local row = math.floor( (i - 1) / icons_per_row )
+			local col = math.mod( i - 1, icons_per_row )
+			local x = start_x + (col * step_x)
+			local y = start_y - (row * step_y)
+
+			slot.bg:ClearAllPoints()
+			slot.bg:SetPoint( "TopLeft", cell, "TopLeft", x, y )
+			slot.bg:SetVertexColor( 0, 0, 0, is_current and 0.44 or 0.56 )
+			slot.bg:Show()
+
+			slot.icon:ClearAllPoints()
+			slot.icon:SetPoint( "CENTER", slot.bg, "CENTER", 0, 0 )
+			slot.icon:SetTexture( visual.texture )
+			slot.icon:SetVertexColor( 1, 1, 1, visual.alpha or 0.92 )
+			slot.icon:Show()
+		end
 	end
 
 	local function create_frame()
@@ -797,8 +1041,8 @@ function M.new()
 			:backdrop( { bgFile = "Interface/Buttons/WHITE8x8" } )
 			:backdrop_color( 0, 0, 0, 0.9 )
 			:close_button()
-			:width( 900 )
-			:height( 560 )
+			:width( 930 )
+			:height( 584 )
 			:movable()
 			:esc()
 			:on_drag_stop( save_position )
@@ -811,7 +1055,8 @@ function M.new()
 		end
 
 		-- Bouton Refresh
-		frame.btn_refresh = m.GuiElements.tiny_button( frame, "R", m.L( "ui.refresh" ), "#20F99F" )
+		frame.btn_refresh = m.GuiElements.tiny_button( frame, "R", nil, "#20F99F" )
+		frame.btn_refresh.tooltip_key = "ui.refresh"
 		frame.btn_refresh:SetPoint( "Right", frame.titlebar.btn_close, "Left", 2, 0 )
 		frame.btn_refresh:SetScript( "OnClick", function()
 			frame.btn_refresh:Disable()
@@ -824,7 +1069,8 @@ function M.new()
 		end )
 
 		-- Bouton Settings
-		frame.btn_settings = m.GuiElements.tiny_button( frame, "S", m.L( "ui.settings" ), "#F3DF2B" )
+		frame.btn_settings = m.GuiElements.tiny_button( frame, "S", nil, "#F3DF2B" )
+		frame.btn_settings.tooltip_key = "ui.settings"
 		frame.btn_settings:SetPoint( "Right", frame.btn_refresh, "Left", 2, 0 )
 		frame.btn_settings:SetScript( "OnClick", function()
 			frame.btn_settings.active = not frame.settings:IsVisible()
@@ -840,6 +1086,9 @@ function M.new()
 				pending_locale_flag = m.db.user_settings.locale_flag or "enUS"
 				frame.settings.time_format:SetSelected( pending_time_format )
 				frame.settings.locale_flag:SetSelected( pending_locale_flag )
+				if frame.settings.show_raid_resets then
+					frame.settings.show_raid_resets:SetChecked( m.db.user_settings.show_raid_reset_icons == 1 )
+				end
 				if frame.settings.refresh_discord_ui then
 					frame.settings.refresh_discord_ui()
 				end
@@ -852,7 +1101,8 @@ function M.new()
 		end )
 
 		-- Bouton Nouvel evenement
-		frame.btn_new_event = m.GuiElements.tiny_button( frame, "+", m.L( "ui.new_event" ), "#00FFFF" )
+		frame.btn_new_event = m.GuiElements.tiny_button( frame, "+", nil, "#00FFFF" )
+		frame.btn_new_event.tooltip_key = "ui.new_event"
 		frame.btn_new_event:SetPoint( "Right", frame.btn_settings, "Left", -2, 0 )
 		frame.btn_new_event:SetScript( "OnClick", function()
 			if m.EventManagePopup then
@@ -866,8 +1116,8 @@ function M.new()
 		frame.calendar_panel = m.FrameBuilder.new()
 			:parent( frame )
 			:point( "TopLeft", frame, "TopLeft", 10, -32 )
-			:width( 620 )
-			:height( 518 )
+			:width( 648 )
+			:height( 542 )
 			:frame_style( "TOOLTIP" )
 			:backdrop( { bgFile = "Interface/Buttons/WHITE8x8" } )
 			:backdrop_color( 0.03, 0.03, 0.04, 1 )
@@ -877,7 +1127,7 @@ function M.new()
 			:parent( frame )
 			:point( "TopLeft", frame.calendar_panel, "TopRight", 8, 0 )
 			:width( 252 )
-			:height( 518 )
+			:height( 542 )
 			:frame_style( "TOOLTIP" )
 			:backdrop( { bgFile = "Interface/Buttons/WHITE8x8" } )
 			:backdrop_color( 0.03, 0.03, 0.04, 1 )
@@ -923,15 +1173,15 @@ function M.new()
 
 		local week_header = CreateFrame( "Frame", nil, frame.calendar_panel )
 		week_header:SetPoint( "TopLeft", frame.calendar_panel, "TopLeft", 12, -46 )
-		week_header:SetWidth( 592 )
+		week_header:SetWidth( 616 )
 		week_header:SetHeight( 18 )
 
 		frame.week_day_labels = {}
 		for i = 1, days_per_week do
 			local label = week_header:CreateFontString( nil, "ARTWORK", "RCFontNormalBold" )
-			label:SetWidth( 84 )
+			label:SetWidth( 88 )
 			label:SetHeight( 18 )
-			label:SetPoint( "TopLeft", week_header, "TopLeft", (i - 1) * 84, 0 )
+			label:SetPoint( "TopLeft", week_header, "TopLeft", (i - 1) * 88, 0 )
 			label:SetJustifyH( "Center" )
 			if i == 6 then
 				label:SetTextColor( 1, 0.55, 0 )
@@ -946,14 +1196,14 @@ function M.new()
 
 		local grid = CreateFrame( "Frame", nil, frame.calendar_panel )
 		grid:SetPoint( "TopLeft", week_header, "BottomLeft", 0, -6 )
-		grid:SetWidth( 592 )
-		grid:SetHeight( 432 )
+		grid:SetWidth( 616 )
+		grid:SetHeight( 456 )
 		frame.grid = grid
 
 		for row = 1, weeks do
 			for column = 1, days_per_week do
-				local cell = create_day_cell( grid, 84, 72 )
-				cell:SetPoint( "TopLeft", grid, "TopLeft", (column - 1) * 84, -((row - 1) * 72) )
+				local cell = create_day_cell( grid, 88, 76 )
+				cell:SetPoint( "TopLeft", grid, "TopLeft", (column - 1) * 88, -((row - 1) * 76) )
 				table.insert( day_cells, cell )
 			end
 		end
@@ -994,7 +1244,7 @@ function M.new()
 			:hidden()
 			:build()
 
-		local btn_welcome = gui.create_button( frame.settings, m.L( "actions.welcome_popup" ) or m.L( "ui.welcome_popup" ) or "Welcome popup", 130, function()
+		local btn_welcome = gui.create_button( frame.settings, m.L( "actions.welcome_popup" ) or "Welcome popup", 130, function()
 			m.welcome_popup.show()
 			popup:Hide()
 		end )
@@ -1074,9 +1324,9 @@ function M.new()
 			width = 100
 		} )
 		dd_locale:SetPoint( "TopLeft", frame.settings, "TopLeft", settings_dropdown_x, settings_first_row_y - settings_row_spacing + 2 )
-		dd_locale:SetItems( {
+		dd_locale:SetItems( (m.get_available_locales and m.get_available_locales()) or {
 			{ value = "enUS", text = m.locale_native_name and m.locale_native_name( "enUS" ) or "English" },
-			{ value = "frFR", text = m.locale_native_name and m.locale_native_name( "frFR" ) or "Francais" }
+			{ value = "frFR", text = m.locale_native_name and m.locale_native_name( "frFR" ) or "Fran\195\167ais" }
 		}, function( value )
 			pending_locale_flag = value
 		end )
@@ -1111,6 +1361,13 @@ function M.new()
 			pending_ui_theme = sel
 		end
 		frame.settings.dd_theme = dd_theme
+
+		local cb_reset_icons = CreateFrame( "CheckButton", "RaidCalendarPopupShowRaidResetsPfui", frame.settings, "UICheckButtonTemplate" )
+		cb_reset_icons:SetWidth( 22 )
+		cb_reset_icons:SetHeight( 22 )
+		cb_reset_icons:SetPoint( "TopLeft", frame.settings, "TopLeft", 300, settings_first_row_y - settings_row_spacing + 2 )
+		getglobal( cb_reset_icons:GetName() .. "Text" ):SetText( m.L( "ui.show_raid_resets" ) )
+		frame.settings.show_raid_resets = cb_reset_icons
 
 		if m.pfui_skin_enabled and m.api and m.api.pfUI and m.api.pfUI.api then
 			local pfui = m.api.pfUI.api
@@ -1223,6 +1480,9 @@ function M.new()
 		end
 		if popup.settings and popup.settings.locale_flag then
 			popup.settings.locale_flag:SetSelected( (popup.settings:IsVisible() and pending_locale_flag) or (m.db.user_settings.locale_flag or "enUS") )
+		end
+		if popup.settings and popup.settings.show_raid_resets then
+			popup.settings.show_raid_resets:SetChecked( m.db.user_settings.show_raid_reset_icons == 1 )
 		end
 		pending_ui_theme = m.db.user_settings.ui_theme or "Original"
 		if popup.settings and popup.settings.dd_theme then

@@ -264,7 +264,7 @@ function M.new()
 				frame:SetMovable( false )
 			end
 
-			if options.esc then
+			if options.esc and frame:GetName() then
 				table.insert( UISpecialFrames, frame:GetName() )
 			end
 
@@ -386,9 +386,9 @@ function M.new()
 	end
 
 	local function on_hide( self, f )
-    options.on_hide = f
-    return self
-  end
+		options.on_hide = f
+		return self
+	end
 
 	local function hidden( self )
 		options.hidden = true

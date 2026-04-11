@@ -57,6 +57,9 @@ function RaidCalendar.events:ADDON_LOADED()
 	m.db.user_settings.ui_theme = m.db.user_settings.ui_theme or "Blizzard"
 	-- Toujours utiliser le nom du personnage (case a cocher supprimee, option forcee)
 	m.db.user_settings.use_character_name = 1
+	if m.db.user_settings.show_raid_reset_icons == nil then
+		m.db.user_settings.show_raid_reset_icons = 1
+	end
 
 	m.time_format = m.db.user_settings.time_format == "24" and "%H:%M" or "%I:%M %p"
 
@@ -67,11 +70,7 @@ function RaidCalendar.events:ADDON_LOADED()
 			selected_locale = ( GetLocale and GetLocale() ) or "enUS"
 		end
 
-		if selected_locale ~= "enUS" and selected_locale ~= "frFR" then
-			selected_locale = "enUS"
-		end
-
-		m.set_locale( selected_locale )
+		selected_locale = m.set_locale( selected_locale )
 		m.db.user_settings.locale_flag = selected_locale
 	end
 
@@ -100,6 +99,14 @@ function RaidCalendar.events:ADDON_LOADED()
 				m.RaidTracker.request_role_check()
 			end
 		end, 5 )
+		-- Re-vérification périodique des rôles toutes les 5 minutes
+		m.ace_timer.ScheduleRepeatingTimer( m, function()
+			if m.db and m.db.user_settings and m.db.user_settings.discord_id then
+				if m.RaidTracker and m.RaidTracker.request_role_check then
+					m.RaidTracker.request_role_check()
+				end
+			end
+		end, 300 )
 	end
 
 	-- Bot status detection:
@@ -115,7 +122,7 @@ function RaidCalendar.events:ADDON_LOADED()
 		local ui_active = false
 		if m.calendar_popup and m.calendar_popup.IsVisible and m.calendar_popup:IsVisible() then ui_active = true end
 		if not ui_active and m.event_popup and m.event_popup.IsVisible and m.event_popup:IsVisible() then ui_active = true end
-		if not ui_active and m.local_event_popup and m.local_event_popup.IsVisible and m.local_event_popup:IsVisible() then ui_active = true end
+		if not ui_active and m.LocalEventPopup and m.LocalEventPopup.is_visible and m.LocalEventPopup.is_visible() then ui_active = true end
 		if not ui_active and m.sr_popup and m.sr_popup.IsVisible and m.sr_popup:IsVisible() then ui_active = true end
 		if not ui_active and m.GroupPopup and m.GroupPopup.popup and m.GroupPopup.popup.IsVisible and m.GroupPopup.popup:IsVisible() then ui_active = true end
 		return ui_active
@@ -170,8 +177,8 @@ function RaidCalendar.events:ADDON_LOADED()
 	m.event_popup = m.EventPopup.new()
 
 	---@type CalendarPopup
-	local theme = m.db.user_settings.ui_theme or "Original"
-	local popup_module = m["CalendarPopup" .. theme] or m.CalendarPopupOriginal
+	local theme = m.db.user_settings.ui_theme or "Blizzard"
+	local popup_module = m["CalendarPopup" .. theme] or m.CalendarPopupBlizzard
 	m.calendar_popup_instances = m.calendar_popup_instances or {}
 	m.calendar_popup_instances[theme] = popup_module.new()
 	m.calendar_popup = m.calendar_popup_instances[theme]
@@ -251,7 +258,7 @@ function RaidCalendar.events:ADDON_LOADED()
 		end
 
 		if args == "clear" then
-			m.info( "All events have been removed" )
+			m.info( m.L( "ui.events_cleared" ) or "All events have been removed." )
 			m.db.events = {}
 			return
 		end
