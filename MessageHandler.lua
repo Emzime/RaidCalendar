@@ -446,6 +446,7 @@ function M.new()
 			characterName = m.player,
 			characterClass = m.player_class,
 			specialization = m.player_class .. m.db.user_settings.sr_specName,
+			userId = m.db.user_settings.discord_id or "",
 			raidItemIds = {}
 		}
 		if sr1 then table.insert( data.raidItemIds, sr1 ) end
@@ -873,7 +874,7 @@ function M.new()
 			if data.success == true then
 				for event_id, event in pairs( m.db.events ) do
 					if event.sr then
-						local _, k = m.find( data.id, event.sr.reservations, "id" )
+						local _, k = m.find( tonumber( data.id ) or data.id, event.sr.reservations, "id" )
 						if k then
 							m.debug( "Delete entry: " .. tostring( k ) .. " in " .. event_id )
 							table.remove( event.sr.reservations, k )

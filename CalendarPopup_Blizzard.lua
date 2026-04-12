@@ -487,7 +487,7 @@ function M.new()
 				ev = m.db.events[ item.key ]
 			end
 			if ev and ev.startTime then
-				local info = date( "*t", ev.startTime )
+				local info = date( "*t", m.ts( ev.startTime ) )
 				if info.year == current_year and info.month == current_month then
 					table.insert( month_evts, item )
 				end
@@ -629,7 +629,7 @@ function M.new()
 			end
 			fr:SetPoint( "Right", detail_panel, "Right", -8, 0 )
 
-			fr.timeText:SetText( date( "%d/%m ", ev.startTime ) .. date( tf, ev.startTime ) )
+			fr.timeText:SetText( date( "%d/%m ", m.ts( ev.startTime ) ) .. date( tf, m.ts( ev.startTime ) ) )
 			fr.titleText:SetText( ev.title or "" )
 
 			local su = m.L( "ui.no_signup_data" )
@@ -739,7 +739,7 @@ function M.new()
 							end
 
 							local chip_title = truncate_cell_label( ev.title or "", 11 )
-							chip.lbl:SetText( date( tf, ev.startTime ) .. " " .. chip_title )
+							chip.lbl:SetText( date( tf, m.ts( ev.startTime ) ) .. " " .. chip_title )
 							chip.eventKey    = item.key
 							chip.eventSource = item.source
 							local icon_offset = (cell.reset_icon_rows and cell.reset_icon_rows > 0) and (cell.reset_icon_rows * 17) or 0
@@ -1032,6 +1032,9 @@ function M.new()
 			if settings.show_raid_resets then
 				getglobal( settings.show_raid_resets:GetName() .. "Text" ):SetText( m.L( "ui.show_raid_resets" ) )
 			end
+			if settings.lbl_utc_offset then
+				settings.lbl_utc_offset:SetText( m.L( "ui.wow_utc_offset" ) or "WoW UTC offset (s)" )
+			end
 			settings.time_format:SetItems( {
 				{ value = "24", text = m.L( "options.time_format_24" ) },
 				{ value = "12", text = m.L( "options.time_format_12" ) }
@@ -1047,7 +1050,10 @@ function M.new()
 			local previous_theme = m.db.user_settings.ui_theme or "Original"
 			local locale_changed = settings.locale_flag.selected ~= m.db.user_settings.locale_flag
 			local tf_manually_changed = settings.time_format.selected ~= m.db.user_settings.time_format
-			local selected_reset_icons = (settings.show_raid_resets and settings.show_raid_resets:GetChecked()) and 1 or 0
+			local selected_reset_icons = (settings.show_raid_resets and settings.show_raid_resets:GetChecked() == 1) and 1 or 0
+			if settings.eb_utc_offset then
+				m.db.user_settings.wow_utc_offset = tonumber( settings.eb_utc_offset:GetText() ) or 0
+			end
 
 			-- use_character_name est force a 1 (case a cocher supprimee)
 			m.db.user_settings.use_character_name = 1
@@ -1444,6 +1450,25 @@ function M.new()
 		getglobal( cb_reset_icons:GetName() .. "Text" ):SetText( m.L( "ui.show_raid_resets" ) )
 		settings.show_raid_resets = cb_reset_icons
 
+		local lbl_utc = settings:CreateFontString( nil, "OVERLAY", "GameFontNormalSmall" )
+		lbl_utc:SetPoint( "TopLeft", settings, "TopLeft", settings_label_x, settings_first_row_y - (settings_row_spacing * 3) )
+		lbl_utc:SetText( m.L( "ui.wow_utc_offset" ) or "WoW UTC offset (s)" )
+		settings.lbl_utc_offset = lbl_utc
+		local eb_utc = CreateFrame( "EditBox", "RaidCalendarUtcOffsetBlizzard", settings )
+		eb_utc:SetWidth( 60 )
+		eb_utc:SetHeight( 18 )
+		eb_utc:SetPoint( "TopLeft", settings, "TopLeft", settings_label_x + 120, settings_first_row_y - (settings_row_spacing * 3) + 2 )
+		eb_utc:SetAutoFocus( false )
+		eb_utc:SetMaxLetters( 7 )
+		eb_utc:SetText( tostring( m.db.user_settings.wow_utc_offset or 0 ) )
+		eb_utc:SetFontObject( "GameFontHighlightSmall" )
+		local eb_utc_bd = CreateFrame( "Frame", nil, eb_utc )
+		eb_utc_bd:SetAllPoints()
+		eb_utc_bd:SetBackdrop( { bgFile = "Interface/Buttons/WHITE8x8", edgeFile = "Interface/Buttons/WHITE8x8", edgeSize = 1 } )
+		eb_utc_bd:SetBackdropColor( 0, 0, 0, 0.85 )
+		eb_utc_bd:SetBackdropBorderColor( 0.3, 0.3, 0.3, 1 )
+		settings.eb_utc_offset = eb_utc
+
 		-- La case "use_character_name" est supprimee, la valeur est forcee a 1 dans RaidCalendar.lua
 
 		frame.btn_settings:SetScript( "OnClick", function()
@@ -1453,7 +1478,10 @@ function M.new()
 				settings.time_format:SetSelected( m.db.user_settings.time_format or "24" )
 				settings.locale_flag:SetSelected( m.db.user_settings.locale_flag or "enUS" )
 				if settings.show_raid_resets then
-					settings.show_raid_resets:SetChecked( m.db.user_settings.show_raid_reset_icons == 1 )
+					settings.show_raid_resets:SetChecked( m.db.user_settings.show_raid_reset_icons == 1 and 1 or nil )
+				end
+				if settings.eb_utc_offset then
+					settings.eb_utc_offset:SetText( tostring( m.db.user_settings.wow_utc_offset or 0 ) )
 				end
 				pending_ui_theme = m.db.user_settings.ui_theme or "Original"
 				if settings.dd_theme then
@@ -1485,6 +1513,8 @@ function M.new()
 		return frame
 	end
 
+	local auto_refresh_timer_cal = nil
+
 	local function show()
 		if not popup then
 			popup = create_frame()
@@ -1513,10 +1543,26 @@ function M.new()
 		if m.msg then
 			m.msg.request_events( true )
 		end
+		-- Auto-refresh toutes les 60 secondes quand le calendrier est ouvert
+		if m.ace_timer then
+			if auto_refresh_timer_cal then
+				m.ace_timer.CancelTimer( m, auto_refresh_timer_cal )
+			end
+			auto_refresh_timer_cal = m.ace_timer.ScheduleRepeatingTimer( m, function()
+				if popup and popup:IsVisible() and m.msg then
+					m.msg.request_events()
+					request_local_events_once( true )
+				end
+			end, 60 )
+		end
 	end
 
 	local function hide()
 		local_events_requested = false
+		if auto_refresh_timer_cal and m.ace_timer then
+			m.ace_timer.CancelTimer( m, auto_refresh_timer_cal )
+			auto_refresh_timer_cal = nil
+		end
 		if popup then
 			popup:Hide()
 		end
@@ -1585,7 +1631,10 @@ function M.new()
 			popup.settings.locale_flag:SetSelected( m.db.user_settings.locale_flag or "enUS" )
 		end
 		if popup.settings and popup.settings.show_raid_resets then
-			popup.settings.show_raid_resets:SetChecked( m.db.user_settings.show_raid_reset_icons == 1 )
+			popup.settings.show_raid_resets:SetChecked( m.db.user_settings.show_raid_reset_icons == 1 and 1 or nil )
+		end
+		if popup.settings and popup.settings.eb_utc_offset then
+			popup.settings.eb_utc_offset:SetText( tostring( m.db.user_settings.wow_utc_offset or 0 ) )
 		end
 		pending_ui_theme = m.db.user_settings.ui_theme or "Original"
 		if popup.settings and popup.settings.dd_theme then

@@ -366,28 +366,36 @@ local function get_raid_reset_definitions()
 			title_key = "ui.raid_reset_raid40",
 			subtitle_key = "ui.raid_reset_raid40_desc",
 			every_days = 7,
-			anchor = normalize_reset_day( time( { year = 2026, month = 4, day = 14, hour = 12, min = 0, sec = 0 } ) )
+			-- Reset chaque mercredi à 04:00 UTC (source: turtletimers.com)
+			-- Ancre = mercredi 15 avril 2026 (jour de reset confirmé)
+			anchor = normalize_reset_day( time( { year = 2026, month = 4, day = 15, hour = 12, min = 0, sec = 0 } ) )
 		},
 		{
 			key = "onyxia",
 			title_key = "ui.raid_reset_onyxia",
 			subtitle_key = nil,
 			every_days = 5,
-			anchor = normalize_reset_day( time( { year = 2026, month = 4, day = 13, hour = 12, min = 0, sec = 0 } ) )
+			-- Reset toutes les 5 jours à 04:00 UTC
+			-- Ancre = mardi 14 avril 2026 (jour de reset confirmé)
+			anchor = normalize_reset_day( time( { year = 2026, month = 4, day = 14, hour = 12, min = 0, sec = 0 } ) )
 		},
 		{
 			key = "karazhan",
 			title_key = "ui.raid_reset_karazhan",
 			subtitle_key = nil,
 			every_days = 5,
-			anchor = normalize_reset_day( time( { year = 2026, month = 4, day = 9, hour = 12, min = 0, sec = 0 } ) )
+			-- Reset toutes les 5 jours à 04:00 UTC
+			-- Ancre = vendredi 10 avril 2026 (jour de reset confirmé)
+			anchor = normalize_reset_day( time( { year = 2026, month = 4, day = 10, hour = 12, min = 0, sec = 0 } ) )
 		},
 		{
 			key = "raid20",
 			title_key = "ui.raid_reset_raid20",
 			subtitle_key = "ui.raid_reset_raid20_desc",
 			every_days = 3,
-			anchor = normalize_reset_day( time( { year = 2026, month = 4, day = 11, hour = 12, min = 0, sec = 0 } ) )
+			-- Reset toutes les 3 jours à 04:00 UTC
+			-- Ancre = dimanche 12 avril 2026 (jour de reset confirmé)
+			anchor = normalize_reset_day( time( { year = 2026, month = 4, day = 12, hour = 12, min = 0, sec = 0 } ) )
 		}
 	}
 

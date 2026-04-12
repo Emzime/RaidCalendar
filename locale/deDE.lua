@@ -149,7 +149,8 @@ m.register_locale("deDE", {
 		raid_reset_karazhan = "Karazhan",
 		raid_reset_raid20 = "Raid 20",
 		raid_reset_raid20_desc = "ZG / AQ20",
-		show_raid_resets = "Raid-Reset-Symbole anzeigen"
+		show_raid_resets = "Raid-Reset-Symbole anzeigen",
+		wow_utc_offset = "WoW UTC offset (s)",
 	},
 	common = {
 		required = "required",

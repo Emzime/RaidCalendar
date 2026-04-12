@@ -326,7 +326,7 @@ function M.new()
 			frame:SetParent( parent )
 		end
 
-		local entry_time = date( "%d. %b %Y " .. m.time_format, signup.entryTime )
+		local entry_time = date( "%d. %b %Y " .. m.time_format, m.ts( signup.entryTime ) )
 		frame.player.set( signup.name, signup.position, entry_time )
 		frame.player.set_icon( gui.spec_icons[ signup.specName ] and gui.spec_icons[ signup.specName ] or "", string.match( signup.specName, "(%a+)" ) )
 
@@ -726,7 +726,7 @@ function M.new()
 		popup.date.set( m.format_local_date( event.startTime, "day_month_year" ) )
 
 		local time_format = m.db.user_settings.time_format == "24" and "%H:%M" or "%I:%M %p"
-		popup.time.set( date( time_format, event.startTime ) )
+		popup.time.set( date( time_format, m.ts( event.startTime ) ) )
 		popup.time_offset.set( m.format_time_difference( event.startTime - now ) )
 
 		--
@@ -924,6 +924,28 @@ function M.new()
 		end
 	end
 
+	local auto_refresh_timer = nil
+
+	local function start_auto_refresh()
+		if not m.ace_timer then return end
+		if auto_refresh_timer then
+			m.ace_timer.CancelTimer( m, auto_refresh_timer )
+			auto_refresh_timer = nil
+		end
+		auto_refresh_timer = m.ace_timer.ScheduleRepeatingTimer( m, function()
+			if popup and popup:IsVisible() then
+				m.msg.request_events()
+			end
+		end, 60 )
+	end
+
+	local function stop_auto_refresh()
+		if auto_refresh_timer and m.ace_timer then
+			m.ace_timer.CancelTimer( m, auto_refresh_timer )
+			auto_refresh_timer = nil
+		end
+	end
+
 	local function show( event_id )
 		-- Ferme les autres popups secondaires
 		if m.close_all_popups then m.close_all_popups() end
@@ -936,9 +958,11 @@ function M.new()
 		close_open_dropdowns()
 		popup:Show()
 		refresh( event_id )
+		start_auto_refresh()
 	end
 
 	local function hide()
+		stop_auto_refresh()
 		if popup then
 			close_open_dropdowns()
 			popup:Hide()

@@ -133,6 +133,7 @@ m.register_locale("frFR", {
 		sr_add_failed    = "\195\137chec ajout SR",
 		sr_delete_failed = "\195\137chec suppression SR",
 		sr_lock_failed   = "\195\137chec verrouillage SR",
+		error_unknown    = "Erreur inconnue",
 		signup_failed    = "Inscription \195\169chou\195\169e",
 		update_available = "Nouvelle version ({version}) disponible !",
 		update_url       = "https://github.com/sica42/RaidCalendar",
@@ -149,7 +150,8 @@ m.register_locale("frFR", {
 		raid_reset_karazhan = "Karazhan",
 		raid_reset_raid20 = "Raid 20",
 		raid_reset_raid20_desc = "ZG / AQ20",
-		show_raid_resets = "Ic\195\180nes de reset de raid"
+		show_raid_resets = "Ic\195\180nes de reset de raid",
+		wow_utc_offset = "Offset UTC WoW (s)",
 	
 	},
 	common = {

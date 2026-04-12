@@ -172,23 +172,6 @@ function M.get_available_locales()
 	return result
 end
 
-function M.get_available_locales()
-	copy_builtin_locales()
-	local locales = {}
-	for locale_code, _ in pairs(registry) do
-		table.insert(locales, locale_code)
-	end
-	table.sort(locales)
-	local result = {}
-	for _, locale_code in ipairs(locales) do
-		table.insert(result, {
-			value = locale_code,
-			text = M.locale_native_name(locale_code),
-		})
-	end
-	return result
-end
-
 function M.register(locale, data)
 	if type(locale) ~= "string" or locale == "" or type(data) ~= "table" then
 		return
@@ -267,20 +250,20 @@ function M.get_month_name(index, short)
 end
 
 function M.format_date(timestamp, style)
-	local info = date("*t", timestamp)
+	local info = date("*t", m.ts( timestamp ) or timestamp)
 	if style == "weekday_day_month" then
-		return string.format("%s %d. %s", M.get_day_name((tonumber(date("%w", timestamp)) or 0) + 1, false), info.day, M.get_month_name(info.month, false))
+		return string.format("%s %d. %s", M.get_day_name((tonumber(date("%w", m.ts( timestamp ) or timestamp)) or 0) + 1, false), info.day, M.get_month_name(info.month, false))
 	elseif style == "day_month_year" then
 		return string.format("%02d. %s %d", info.day, M.get_month_name(info.month, false), info.year)
 	elseif style == "day_shortmonth_year_time" then
-		return string.format("%02d. %s %d %s", info.day, M.get_month_name(info.month, true), info.year, date(m.time_format, timestamp))
+		return string.format("%02d. %s %d %s", info.day, M.get_month_name(info.month, true), info.year, date(m.time_format, m.ts( timestamp ) or timestamp))
 	elseif style == "day_month_year_compact" then
 		return string.format("%02d %s %d", info.day, M.get_month_name(info.month, false), info.year)
 	elseif style == "month_year" then
 		return string.format("%s %d", M.get_month_name(info.month, false), info.year)
 	end
 
-	return date("%c", timestamp)
+	return date("%c", m.ts( timestamp ) or timestamp)
 end
 
 copy_builtin_locales()

@@ -1013,6 +1013,28 @@ function M.new()
 		refresh_list()
 	end
 
+	local auto_refresh_timer = nil
+
+	local function start_auto_refresh()
+		if not m.ace_timer then return end
+		if auto_refresh_timer then
+			m.ace_timer.CancelTimer( m, auto_refresh_timer )
+			auto_refresh_timer = nil
+		end
+		auto_refresh_timer = m.ace_timer.ScheduleRepeatingTimer( m, function()
+			if popup and popup:IsVisible() and event_id and m.db.events[ event_id ] and m.db.events[ event_id ].srId then
+				m.msg.request_sr( m.db.events[ event_id ].srId )
+			end
+		end, 30 )
+	end
+
+	local function stop_auto_refresh()
+		if auto_refresh_timer and m.ace_timer then
+			m.ace_timer.CancelTimer( m, auto_refresh_timer )
+			auto_refresh_timer = nil
+		end
+	end
+
 	local function show( _event_id )
 		event_id = _event_id
 		if m.db.events[ event_id ] and m.db.events[ event_id ].srId then
@@ -1027,10 +1049,12 @@ function M.new()
 			offset = 0
 			is_deleting = false
 			refresh()
+			start_auto_refresh()
 		end
 	end
 
 	local function hide()
+		stop_auto_refresh()
 		if popup then
 			popup:Hide()
 		end

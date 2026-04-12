@@ -51,13 +51,13 @@ end
 
 local function fmt_date_display(ts)
     if is_fr_locale() then
-        return date("%d/%m/%Y", ts)
+        return date("%d/%m/%Y", m.ts( ts ) or ts)
     end
-    return date("%m/%d/%Y", ts)
+    return date("%m/%d/%Y", m.ts( ts ) or ts)
 end
 
 local function fmt_time_display(ts)
-    return date("%H:%M", ts)
+    return date("%H:%M", m.ts( ts ) or ts)
 end
 
 local function parse_date_display(ds)

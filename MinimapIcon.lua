@@ -93,7 +93,7 @@ function M.new()
 			for _, e in ipairs( group.entries ) do
 				local event = m.db.events[ e.key ]
 				if event then
-					local start_time = date( m.time_format, event.startTime )
+					local start_time = date( m.time_format, m.ts( event.startTime ) )
 					self:AddLine( string.format( "  - %s |cffffffff[%s]|r", m.capitalize_words( event.title ), start_time ) )
 				end
 			end

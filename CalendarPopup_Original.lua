@@ -94,7 +94,10 @@ function M.new()
 		-- use_character_name est force a 1 (case a cocher supprimee)
 		m.db.user_settings.use_character_name = 1
 		if popup.settings.show_raid_resets then
-			m.db.user_settings.show_raid_reset_icons = popup.settings.show_raid_resets:GetChecked() and 1 or 0
+			m.db.user_settings.show_raid_reset_icons = popup.settings.show_raid_resets:GetChecked() == 1 and 1 or 0
+		end
+		if popup.settings.eb_utc_offset then
+			m.db.user_settings.wow_utc_offset = tonumber( popup.settings.eb_utc_offset:GetText() ) or 0
 		end
 		m.db.user_settings.time_format = popup.settings.time_format.selected
 		m.time_format = m.db.user_settings.time_format == "24" and "%H:%M" or "%I:%M %p"
@@ -292,8 +295,8 @@ function M.new()
 			end
 
 			title:SetText( event.title or "" )
-			date_label.set( date( "%d. %b %Y", event.startTime ) )
-			time_label.set( date( m.time_format, event.startTime ) )
+			date_label.set( date( "%d. %b %Y", m.ts( event.startTime ) ) )
+			time_label.set( date( m.time_format, m.ts( event.startTime ) ) )
 
 			local diff = event.startTime - time( date( "*t" ) )
 			time_offset.set( m.format_time_difference( diff ) )
@@ -478,7 +481,7 @@ function M.new()
 				:parent( frame )
 				:point( "TopLeft", border_events, "BottomLeft", 0, -6 )
 				:point( "Right", frame, "Right", -10, 10 )
-				:height( 130 )
+				:height( 150 )
 				:frame_style( "TOOLTIP" )
 				:backdrop( { bgFile = "Interface/Buttons/WHITE8x8" } )
 				:backdrop_color( 0, 0, 0, 1 )
@@ -627,6 +630,25 @@ function M.new()
 		cb_reset_icons:SetAlpha( 0.45 )  -- visuellement gris\195\169 : pr\195\169f\195\169rence sauvegard\195\169e mais sans effet dans ce th\195\168me
 		frame.settings.show_raid_resets = cb_reset_icons
 
+		local lbl_utc = frame.settings:CreateFontString( nil, "OVERLAY", "GameFontNormalSmall" )
+		lbl_utc:SetPoint( "TopLeft", frame.settings, "TopLeft", 10, -90 )
+		lbl_utc:SetText( m.L( "ui.wow_utc_offset" ) or "WoW UTC offset (s)" )
+		frame.settings.lbl_utc_offset = lbl_utc
+		local eb_utc = CreateFrame( "EditBox", "RaidCalendarUtcOffsetOriginal", frame.settings )
+		eb_utc:SetWidth( 60 )
+		eb_utc:SetHeight( 18 )
+		eb_utc:SetPoint( "TopLeft", frame.settings, "TopLeft", 140, -88 )
+		eb_utc:SetAutoFocus( false )
+		eb_utc:SetMaxLetters( 7 )
+		eb_utc:SetText( tostring( m.db.user_settings.wow_utc_offset or 0 ) )
+		eb_utc:SetFontObject( "GameFontHighlightSmall" )
+		local eb_utc_bd = CreateFrame( "Frame", nil, eb_utc )
+		eb_utc_bd:SetAllPoints()
+		eb_utc_bd:SetBackdrop( { bgFile = "Interface/Buttons/WHITE8x8", edgeFile = "Interface/Buttons/WHITE8x8", edgeSize = 1 } )
+		eb_utc_bd:SetBackdropColor( 0, 0, 0, 0.85 )
+		eb_utc_bd:SetBackdropBorderColor( 0.3, 0.3, 0.3, 1 )
+		frame.settings.eb_utc_offset = eb_utc
+
 		local btn_welcome = gui.create_button( frame.settings, m.L and m.L( "actions.welcome_popup" ) or "Welcome popup", 130, function()
 			m.welcome_popup.show()
 			popup:Hide()
@@ -677,7 +699,10 @@ function M.new()
 			popup.settings.locale_flag:SetSelected( m.db.user_settings.locale_flag or "enUS" )
 		end
 		if popup.settings.show_raid_resets then
-			popup.settings.show_raid_resets:SetChecked( m.db.user_settings.show_raid_reset_icons == 1 )
+			popup.settings.show_raid_resets:SetChecked( m.db.user_settings.show_raid_reset_icons == 1 and 1 or nil )
+		end
+		if popup.settings.eb_utc_offset then
+			popup.settings.eb_utc_offset:SetText( tostring( m.db.user_settings.wow_utc_offset or 0 ) )
 		end
 
 		if not events or refresh_data then
@@ -728,6 +753,8 @@ function M.new()
 		end
 	end
 
+	local auto_refresh_timer_cal = nil
+
 	local function show()
 		if not popup then
 			popup = create_frame()
@@ -736,9 +763,23 @@ function M.new()
 		selected = nil
 		popup:Show()
 		refresh()
+		if m.ace_timer then
+			if auto_refresh_timer_cal then
+				m.ace_timer.CancelTimer( m, auto_refresh_timer_cal )
+			end
+			auto_refresh_timer_cal = m.ace_timer.ScheduleRepeatingTimer( m, function()
+				if popup and popup:IsVisible() and m.msg then
+					m.msg.request_events()
+				end
+			end, 60 )
+		end
 	end
 
 	local function hide()
+		if auto_refresh_timer_cal and m.ace_timer then
+			m.ace_timer.CancelTimer( m, auto_refresh_timer_cal )
+			auto_refresh_timer_cal = nil
+		end
 		if m.close_all_popups then m.close_all_popups() end
 		if popup then
 			popup:Hide()
@@ -792,7 +833,10 @@ function M.new()
 			popup.settings.locale_flag:SetSelected( m.db.user_settings.locale_flag or "enUS" )
 		end
 		if popup.settings.show_raid_resets then
-			popup.settings.show_raid_resets:SetChecked( m.db.user_settings.show_raid_reset_icons == 1 )
+			popup.settings.show_raid_resets:SetChecked( m.db.user_settings.show_raid_reset_icons == 1 and 1 or nil )
+		end
+		if popup.settings.eb_utc_offset then
+			popup.settings.eb_utc_offset:SetText( tostring( m.db.user_settings.wow_utc_offset or 0 ) )
 		end
 		pending_ui_theme = m.db.user_settings.ui_theme or "Original"
 		if popup.settings.dd_theme then

@@ -149,7 +149,8 @@ m.register_locale("ptBR", {
 		raid_reset_karazhan = "Karazhan",
 		raid_reset_raid20 = "Raid 20",
 		raid_reset_raid20_desc = "ZG / AQ20",
-		show_raid_resets = "Mostrar \195\173cones de reset"
+		show_raid_resets = "Mostrar \195\173cones de reset",
+		wow_utc_offset = "WoW UTC offset (s)",
 	},
 	common = {
 		required = "required",

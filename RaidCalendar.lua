@@ -60,8 +60,18 @@ function RaidCalendar.events:ADDON_LOADED()
 	if m.db.user_settings.show_raid_reset_icons == nil then
 		m.db.user_settings.show_raid_reset_icons = 1
 	end
+	-- Offset en secondes entre l'heure du serveur WoW et UTC (ex: 3600 = UTC+1, 7200 = UTC+2)
+	if m.db.user_settings.wow_utc_offset == nil then
+		m.db.user_settings.wow_utc_offset = 0
+	end
 
 	m.time_format = m.db.user_settings.time_format == "24" and "%H:%M" or "%I:%M %p"
+
+	-- Ajuste un timestamp UTC pour l'affichage local (offset serveur WoW → timezone souhaité)
+	function m.ts( t )
+		if not t or t == 0 then return t end
+		return t + ( m.db and m.db.user_settings and m.db.user_settings.wow_utc_offset or 0 )
+	end
 
 	-- Apply saved locale, otherwise use WoW client locale, fallback to enUS
 	if m.set_locale then

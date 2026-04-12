@@ -330,54 +330,12 @@ local function clear_remote()
 	m.msg.group_plan_clear(event_id, (m.db and m.db.user_settings and m.db.user_settings.discord_id) or "")
 end
 
-local function normalize_signup_text( value )
-	if not value then return "" end
-	value = tostring( value )
-	value = string.gsub( value, "^%s+", "" )
-	value = string.gsub( value, "%s+$", "" )
-	value = string.lower( value )
-	return value
+local function is_primary_signup_status( status )
+	return status == "Signup"
 end
 
-local function signup_bucket( signup )
-	local status = normalize_signup_text( signup and signup.status )
-	local class_name = normalize_signup_text( signup and signup.className )
-	local role_name = normalize_signup_text( signup and signup.roleName )
-	local value = status
-	if value == "" then value = class_name end
-	if value == "" then value = role_name end
-
-	if value == "bench" or value == "remplaçant" or value == "remplacant"
-		or value == "late" or value == "retard" then
-		return "secondary"
-	end
-
-	if value == "absence" or value == "absent"
-		or value == "tentative" or value == "incertain" or value == "uncertain" then
-		return "hidden"
-	end
-
-	if value == "signup" or value == "inscription" or value == "confirmé" or value == "confirme"
-		or value == "confirmed" then
-		return "primary"
-	end
-
-	if class_name ~= "" and class_name ~= "bench" and class_name ~= "remplaçant" and class_name ~= "remplacant"
-		and class_name ~= "late" and class_name ~= "retard"
-		and class_name ~= "absence" and class_name ~= "absent"
-		and class_name ~= "tentative" and class_name ~= "incertain" and class_name ~= "uncertain" then
-		return "primary"
-	end
-
-	return "hidden"
-end
-
-local function is_primary_signup_status( signup )
-	return signup_bucket( signup ) == "primary"
-end
-
-local function is_secondary_signup_status( signup )
-	return signup_bucket( signup ) == "secondary"
+local function is_secondary_signup_status( status )
+	return status == "Bench" or status == "Late"
 end
 
 local function build()
@@ -695,7 +653,7 @@ local function build()
 		clear_plan_local()
 		local g, s = 1, 1
 		for _, su in pairs(ev.signUps or {}) do
-			if su.name and is_primary_signup_status( su ) then
+			if su.name and is_primary_signup_status( su.status ) then
 				get_group_plan_store()[event_id][g] = get_group_plan_store()[event_id][g] or {}
 				get_group_plan_store()[event_id][g][s] = su.name
 				s = s + 1
@@ -962,9 +920,9 @@ local function refresh()
 	local available_secondary = {}
 	for _, su in pairs(ev.signUps or {}) do
 		if su.name and not placed[su.name] then
-			if is_primary_signup_status( su ) then
+			if is_primary_signup_status( su.status ) then
 				table.insert( available_primary, su )
-			elseif is_secondary_signup_status( su ) then
+			elseif is_secondary_signup_status( su.status ) then
 				table.insert( available_secondary, su )
 			end
 		end
