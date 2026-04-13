@@ -60,7 +60,7 @@ If the raid has a SR sheet attached, you can click the SR icon to open the SR wi
 
 Using the Turtle Wow Launcher:
 
-Copy and paste https://github.com/Emzime/RaidCalendar into the launcher.
+Copy and paste https://github.com/sica42/RaidCalendar into the launcher.
 
 Manual install:
 1. Download or clone the addon into your `Interface\AddOns\` folder.
