@@ -94,7 +94,7 @@ function M.new()
 		-- use_character_name est force a 1 (case a cocher supprimee)
 		m.db.user_settings.use_character_name = 1
 		if popup.settings.show_raid_resets then
-			m.db.user_settings.show_raid_reset_icons = popup.settings.show_raid_resets:GetChecked() == 1 and 1 or 0
+			m.db.user_settings.show_raid_reset_icons = popup.settings.show_raid_resets:GetChecked() and 1 or 0
 		end
 		if popup.settings.eb_utc_offset then
 			m.db.user_settings.wow_utc_offset = tonumber( popup.settings.eb_utc_offset:GetText() ) or 0
@@ -426,7 +426,7 @@ function M.new()
 				end
 				refresh_settings_labels()
 				frame.settings:Show()
-				frame:SetHeight( 425 )
+				frame:SetHeight( 445 )
 			end
 		end )
 
@@ -481,7 +481,7 @@ function M.new()
 				:parent( frame )
 				:point( "TopLeft", border_events, "BottomLeft", 0, -6 )
 				:point( "Right", frame, "Right", -10, 10 )
-				:height( 150 )
+				:height( 165 )
 				:frame_style( "TOOLTIP" )
 				:backdrop( { bgFile = "Interface/Buttons/WHITE8x8" } )
 				:backdrop_color( 0, 0, 0, 1 )
@@ -619,29 +619,23 @@ function M.new()
 		} )
 		frame.settings.locale_flag = dd_locale
 
-		-- Les ic\195\180nes de reset de raid sont disponibles dans les th\195\168mes Pfui et Blizzard.
-		-- Dans le th\195\168me Original (liste d'\195\169v\195\169nements), il n'y a pas de grille mensuelle
-		-- pour les afficher. La pr\195\169f\195\169rence est tout de m\195\170me sauvegard\195\169e.
-		local cb_reset_icons = CreateFrame( "CheckButton", "RaidCalendarPopupShowRaidResetsOriginal", frame.settings, "UICheckButtonTemplate" )
-		cb_reset_icons:SetWidth( 22 )
-		cb_reset_icons:SetHeight( 22 )
-		cb_reset_icons:SetPoint( "TopLeft", frame.settings, "TopLeft", 300, -50 )
-		getglobal( cb_reset_icons:GetName() .. "Text" ):SetText( m.L( "ui.show_raid_resets" ) )
-		cb_reset_icons:SetAlpha( 0.45 )  -- visuellement gris\195\169 : pr\195\169f\195\169rence sauvegard\195\169e mais sans effet dans ce th\195\168me
-		frame.settings.show_raid_resets = cb_reset_icons
+		-- La case "Icones de reset de raid" n'est pas affichee dans le theme Original :
+		-- ce theme utilise une liste d'evenements et non une grille mensuelle.
+		-- frame.settings.show_raid_resets reste nil intentionnellement.
 
 		local lbl_utc = frame.settings:CreateFontString( nil, "OVERLAY", "GameFontNormalSmall" )
-		lbl_utc:SetPoint( "TopLeft", frame.settings, "TopLeft", 10, -90 )
+		lbl_utc:SetPoint( "TopLeft", frame.settings, "TopLeft", 10, -116 )
 		lbl_utc:SetText( m.L( "ui.wow_utc_offset" ) or "WoW UTC offset (s)" )
 		frame.settings.lbl_utc_offset = lbl_utc
 		local eb_utc = CreateFrame( "EditBox", "RaidCalendarUtcOffsetOriginal", frame.settings )
 		eb_utc:SetWidth( 60 )
 		eb_utc:SetHeight( 18 )
-		eb_utc:SetPoint( "TopLeft", frame.settings, "TopLeft", 140, -88 )
+		eb_utc:SetPoint( "TopLeft", frame.settings, "TopLeft", 140, -114 )
 		eb_utc:SetAutoFocus( false )
 		eb_utc:SetMaxLetters( 7 )
 		eb_utc:SetText( tostring( m.db.user_settings.wow_utc_offset or 0 ) )
 		eb_utc:SetFontObject( "GameFontHighlightSmall" )
+		eb_utc:SetTextColor( 1, 1, 1, 1 )
 		local eb_utc_bd = CreateFrame( "Frame", nil, eb_utc )
 		eb_utc_bd:SetAllPoints()
 		eb_utc_bd:SetBackdrop( { bgFile = "Interface/Buttons/WHITE8x8", edgeFile = "Interface/Buttons/WHITE8x8", edgeSize = 1 } )
