@@ -15,6 +15,17 @@ locale\deDE.lua
 locale\esES.lua
 locale\ruRU.lua
 locale\ptBR.lua
+locale\itIT.lua
+locale\csCZ.lua
+locale\daDK.lua
+locale\fiFI.lua
+locale\huHU.lua
+locale\nbNO.lua
+locale\nlNL.lua
+locale\plPL.lua
+locale\ptPT.lua
+locale\roRO.lua
+locale\svSE.lua
 Utils.lua
 LootTable.lua
 GuiElements.lua
