@@ -639,7 +639,7 @@ function M.new()
 			if not m.debug_enabled or m.db.events[ event_id ].leaderId == m.db.user_settings.discord_id then
 				m.ace_timer.ScheduleTimer( M, function()
 					frame.btn_refresh:Enable()
-				end, 30 )
+				end, 5 )
 			end
 		end )
 
@@ -1025,7 +1025,7 @@ function M.new()
 			if popup and popup:IsVisible() and event_id and m.db.events[ event_id ] and m.db.events[ event_id ].srId then
 				m.msg.request_sr( m.db.events[ event_id ].srId )
 			end
-		end, 30 )
+		end, 6 )
 	end
 
 	local function stop_auto_refresh()

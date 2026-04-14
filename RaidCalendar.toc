@@ -1,8 +1,8 @@
 ## Interface: 11200
 ## Title: RaidCalendar
-## Author: Sica
-## Version: 0.9.11
-## Notes: Shows raids from raid-helper.xyz
+## Author: Sica rework by Emzime
+## Version: 0.9.12
+## Notes: Shows raids from raid-helper.xyz or in-game events
 ## SavedVariablesPerCharacter: RaidCalendarDB
 
 libs\LibStub\LibStub.lua

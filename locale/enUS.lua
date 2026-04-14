@@ -136,7 +136,7 @@ m.register_locale("enUS", {
 		error_unknown    = "Unknown error",
 		signup_failed    = "Signup failed",
 		update_available = "New version ({version}) is available!",
-		update_url       = "https://github.com/sica42/RaidCalendar",
+		update_url       = "https://github.com/Hudrel/RaidCalendar",
 		errcode_invalid_data = "Invalid data",
 		rollfor_required = "RollFor v4.8.1 or higher is required.",
 		rollfor_export = "Export to RollFor",
