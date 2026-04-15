@@ -136,7 +136,7 @@ m.register_locale("enUS", {
 		error_unknown    = "Unknown error",
 		signup_failed    = "Signup failed",
 		update_available = "New version ({version}) is available!",
-		update_url       = "https://github.com/sica42/RaidCalendar",
+		update_url       = "https://github.com/Hudrel/RaidCalendar",
 		errcode_invalid_data = "Invalid data",
 		rollfor_required = "RollFor v4.8.1 or higher is required.",
 		rollfor_export = "Export to RollFor",
@@ -151,6 +151,7 @@ m.register_locale("enUS", {
 		raid_reset_raid20 = "Raid 20",
 		raid_reset_raid20_desc = "ZG / AQ20",
 		show_raid_resets = "Show raid reset icons",
+		wow_utc_offset = "WoW UTC offset (s)",
 	},
 	common = {
 		required = "required",

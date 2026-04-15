@@ -51,13 +51,13 @@ end
 
 local function fmt_date_display(ts)
     if is_fr_locale() then
-        return date("%d/%m/%Y", ts)
+        return date("%d/%m/%Y", m.ts( ts ) or ts)
     end
-    return date("%m/%d/%Y", ts)
+    return date("%m/%d/%Y", m.ts( ts ) or ts)
 end
 
 local function fmt_time_display(ts)
-    return date("%H:%M", ts)
+    return date("%H:%M", m.ts( ts ) or ts)
 end
 
 local function parse_date_display(ds)
@@ -1660,7 +1660,7 @@ function M.show_edit(event_id)
     -- Pré-sélectionner le raid dans le dropdown (recherche par raidId puis par nom)
     local raid_id_edit = ev.raidId or find_raid_id_by_title(ev.title)
     ensure_dropdown_value(popup.dd_title, raid_id_edit)
-    fill_datetime(m.ts and m.ts(ev.startTime or time()) or (ev.startTime or time()), false)
+    fill_datetime(ev.startTime or time(), false)
     popup.inp_desc:SetText(strip_tagged_links(ev.description or "") or "")
     set_template_value(tostring(ev.templateId or "3"))
     if popup.dd_limit then local v = ev.limit or 25; popup.dd_limit.selected = v; popup.dd_limit:SetText(tostring(v)) end
@@ -1741,7 +1741,7 @@ function M.show_edit_local(event_id)
 
     popup.titlebar.title:SetText(T("event_manage.edit_title_local_prefix") .. " " .. ev.title)
     popup.inp_title:SetText(ev.title or "")
-    fill_datetime(m.ts and m.ts(ev.startTime or time()) or (ev.startTime or time()), false)
+    fill_datetime(ev.startTime or time(), false)
     popup.inp_desc:SetText(ev.description or "")
     if popup.dd_limit then local v = ev.limit or 1; popup.dd_limit.selected = v; popup.dd_limit:SetText(tostring(v)) end
     popup.btn_submit:SetText(string.format("|cffFFD000%s|r", T("actions.save")))
