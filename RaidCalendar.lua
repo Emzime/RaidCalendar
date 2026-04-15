@@ -60,10 +60,19 @@ function RaidCalendar.events:ADDON_LOADED()
 	if m.db.user_settings.show_raid_reset_icons == nil then
 		m.db.user_settings.show_raid_reset_icons = 1
 	end
-	-- Offset en secondes entre l'heure du serveur WoW et UTC (ex: 3600 = UTC+1, 7200 = UTC+2)
-	if m.db.user_settings.wow_utc_offset == nil then
-		m.db.user_settings.wow_utc_offset = 0
-	end
+	-- Calcul automatique de l'offset entre l'heure du serveur WoW et UTC
+	-- time() = epoch UTC, date("*t").hour = heure selon le serveur WoW
+	-- offset = (heure_serveur - heure_UTC) * 3600
+	local function compute_server_offset()
+		local now = time()
+		local utc_hour = math.floor( now / 3600 ) % 24
+		local srv_hour = date( "*t", now ).hour or 0
+		local diff = srv_hour - utc_hour
+		if diff > 12 then diff = diff - 24 end
+		if diff < -12 then diff = diff + 24 end
+		return diff * 3600
+	 end
+	m.db.user_settings.wow_utc_offset = compute_server_offset()
 
 	m.time_format = m.db.user_settings.time_format == "24" and "%H:%M" or "%I:%M %p"
 

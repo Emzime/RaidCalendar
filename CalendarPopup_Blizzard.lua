@@ -1032,9 +1032,6 @@ function M.new()
 			if settings.show_raid_resets then
 				getglobal( settings.show_raid_resets:GetName() .. "Text" ):SetText( m.L( "ui.show_raid_resets" ) )
 			end
-			if settings.lbl_utc_offset then
-				settings.lbl_utc_offset:SetText( m.L( "ui.wow_utc_offset" ) or "WoW UTC offset (s)" )
-			end
 			settings.time_format:SetItems( {
 				{ value = "24", text = m.L( "options.time_format_24" ) },
 				{ value = "12", text = m.L( "options.time_format_12" ) }
@@ -1051,9 +1048,6 @@ function M.new()
 			local locale_changed = settings.locale_flag.selected ~= m.db.user_settings.locale_flag
 			local tf_manually_changed = settings.time_format.selected ~= m.db.user_settings.time_format
 			local selected_reset_icons = (settings.show_raid_resets and settings.show_raid_resets:GetChecked() == 1) and 1 or 0
-			if settings.eb_utc_offset then
-				m.db.user_settings.wow_utc_offset = tonumber( settings.eb_utc_offset:GetText() ) or 0
-			end
 
 			-- use_character_name est force a 1 (case a cocher supprimee)
 			m.db.user_settings.use_character_name = 1
@@ -1313,7 +1307,7 @@ function M.new()
 		settings = CreateFrame( "Frame", nil, frame )
 		settings:SetPoint( "TopLeft", frame, "TopLeft", 5, -45 )
 		settings:SetPoint( "Right", frame, "Right", -5, 0 )
-		settings:SetHeight( 170 )
+		settings:SetHeight( 138 )
 		settings:SetFrameStrata( "DIALOG" )
 		settings:SetFrameLevel( 100 )
 		settings:SetBackdrop( {
@@ -1450,24 +1444,6 @@ function M.new()
 		getglobal( cb_reset_icons:GetName() .. "Text" ):SetText( m.L( "ui.show_raid_resets" ) )
 		settings.show_raid_resets = cb_reset_icons
 
-		local lbl_utc = settings:CreateFontString( nil, "OVERLAY", "GameFontNormalSmall" )
-		lbl_utc:SetPoint( "TopLeft", settings, "TopLeft", settings_label_x, settings_first_row_y - (settings_row_spacing * 3) )
-		lbl_utc:SetText( m.L( "ui.wow_utc_offset" ) or "WoW UTC offset (s)" )
-		settings.lbl_utc_offset = lbl_utc
-		local eb_utc = CreateFrame( "EditBox", "RaidCalendarUtcOffsetBlizzard", settings )
-		eb_utc:SetWidth( 60 )
-		eb_utc:SetHeight( 18 )
-		eb_utc:SetPoint( "TopLeft", settings, "TopLeft", settings_label_x + 120, settings_first_row_y - (settings_row_spacing * 3) + 2 )
-		eb_utc:SetAutoFocus( false )
-		eb_utc:SetMaxLetters( 7 )
-		eb_utc:SetText( tostring( m.db.user_settings.wow_utc_offset or 0 ) )
-		eb_utc:SetFontObject( "GameFontHighlightSmall" )
-		local eb_utc_bd = CreateFrame( "Frame", nil, eb_utc )
-		eb_utc_bd:SetAllPoints()
-		eb_utc_bd:SetBackdrop( { bgFile = "Interface/Buttons/WHITE8x8", edgeFile = "Interface/Buttons/WHITE8x8", edgeSize = 1 } )
-		eb_utc_bd:SetBackdropColor( 0, 0, 0, 0.85 )
-		eb_utc_bd:SetBackdropBorderColor( 0.3, 0.3, 0.3, 1 )
-		settings.eb_utc_offset = eb_utc
 
 		-- La case "use_character_name" est supprimee, la valeur est forcee a 1 dans RaidCalendar.lua
 
@@ -1479,9 +1455,6 @@ function M.new()
 				settings.locale_flag:SetSelected( m.db.user_settings.locale_flag or "enUS" )
 				if settings.show_raid_resets then
 					settings.show_raid_resets:SetChecked( m.db.user_settings.show_raid_reset_icons == 1 and 1 or nil )
-				end
-				if settings.eb_utc_offset then
-					settings.eb_utc_offset:SetText( tostring( m.db.user_settings.wow_utc_offset or 0 ) )
 				end
 				pending_ui_theme = m.db.user_settings.ui_theme or "Original"
 				if settings.dd_theme then
@@ -1632,9 +1605,6 @@ function M.new()
 		end
 		if popup.settings and popup.settings.show_raid_resets then
 			popup.settings.show_raid_resets:SetChecked( m.db.user_settings.show_raid_reset_icons == 1 and 1 or nil )
-		end
-		if popup.settings and popup.settings.eb_utc_offset then
-			popup.settings.eb_utc_offset:SetText( tostring( m.db.user_settings.wow_utc_offset or 0 ) )
 		end
 		pending_ui_theme = m.db.user_settings.ui_theme or "Original"
 		if popup.settings and popup.settings.dd_theme then
