@@ -268,8 +268,6 @@ function M.new()
 		if popup.settings.show_raid_resets then
 			getglobal( popup.settings.show_raid_resets:GetName() .. "Text" ):SetText( m.L( "ui.show_raid_resets" ) )
 		end
-		if popup.settings.lbl_utc_offset then
-			popup.settings.lbl_utc_offset:SetText( m.L( "ui.wow_utc_offset" ) or "WoW UTC offset (s)" )
 		end
 		popup.settings.time_format:SetItems( {
 			{ value = "24", text = m.L( "options.time_format_24" ) },
@@ -295,9 +293,6 @@ function M.new()
 		local locale_changed = selected_locale_flag ~= previous_locale_flag
 		local tf_manually_changed = selected_time_format ~= previous_time_format
 		local selected_reset_icons = (popup.settings.show_raid_resets and popup.settings.show_raid_resets:GetChecked() == 1) and 1 or 0
-		if popup.settings.eb_utc_offset then
-			local off = tonumber( popup.settings.eb_utc_offset:GetText() )
-			m.db.user_settings.wow_utc_offset = off or 0
 		end
 
 		-- use_character_name est force a 1 (case a cocher supprimee)
@@ -1319,7 +1314,7 @@ function M.new()
 			:parent( frame )
 			:point( "TopLeft", frame, "TopLeft", 10, -32 )
 			:point( "Right", frame.detail_panel, "Right", 0, 0 )
-			:height( 160 )
+			:height( 128 )
 			:frame_level( 85 )
 			:frame_style( "TOOLTIP" )
 			:backdrop( { bgFile = "Interface/Buttons/WHITE8x8" } )
@@ -1452,31 +1447,6 @@ function M.new()
 		getglobal( cb_reset_icons:GetName() .. "Text" ):SetText( m.L( "ui.show_raid_resets" ) )
 		frame.settings.show_raid_resets = cb_reset_icons
 
-		-- Label + EditBox pour l'offset UTC du serveur WoW
-		local lbl_utc = frame.settings:CreateFontString( nil, "OVERLAY", "GameFontNormalSmall" )
-		lbl_utc:SetPoint( "TopLeft", frame.settings, "TopLeft", settings_label_x, settings_first_row_y - (settings_row_spacing * 3) )
-		lbl_utc:SetText( m.L( "ui.wow_utc_offset" ) or "WoW UTC offset (s)" )
-		frame.settings.lbl_utc_offset = lbl_utc
-		local eb_utc = CreateFrame( "EditBox", "RaidCalendarUtcOffsetPfui", frame.settings )
-		eb_utc:SetWidth( 60 )
-		eb_utc:SetHeight( 18 )
-		eb_utc:SetPoint( "TopLeft", frame.settings, "TopLeft", settings_dropdown_x, settings_first_row_y - (settings_row_spacing * 3) + 2 )
-		eb_utc:SetAutoFocus( false )
-		eb_utc:SetMaxLetters( 7 )
-		eb_utc:SetText( tostring( m.db.user_settings.wow_utc_offset or 0 ) )
-		eb_utc:SetFontObject( "GameFontHighlightSmall" )
-		if m.pfui_skin_enabled and m.api and m.api.pfUI and m.api.pfUI.api then
-			local pfui = m.api.pfUI.api
-			if pfui.StripTextures then pfui.StripTextures( eb_utc ) end
-			if pfui.CreateBackdrop then pfui.CreateBackdrop( eb_utc, nil, true ) end
-		else
-			local bd = CreateFrame( "Frame", nil, eb_utc )
-			bd:SetAllPoints()
-			bd:SetBackdrop( { bgFile = "Interface/Buttons/WHITE8x8", edgeFile = "Interface/Buttons/WHITE8x8", edgeSize = 1 } )
-			bd:SetBackdropColor( 0, 0, 0, 0.85 )
-			bd:SetBackdropBorderColor( 0.3, 0.3, 0.3, 1 )
-		end
-		frame.settings.eb_utc_offset = eb_utc
 
 		if m.pfui_skin_enabled and m.api and m.api.pfUI and m.api.pfUI.api then
 			local pfui = m.api.pfUI.api
@@ -1610,8 +1580,6 @@ function M.new()
 		if popup.settings and popup.settings.show_raid_resets then
 			popup.settings.show_raid_resets:SetChecked( m.db.user_settings.show_raid_reset_icons == 1 and 1 or nil )
 		end
-		if popup.settings and popup.settings.eb_utc_offset then
-			popup.settings.eb_utc_offset:SetText( tostring( m.db.user_settings.wow_utc_offset or 0 ) )
 		end
 		pending_ui_theme = m.db.user_settings.ui_theme or "Original"
 		if popup.settings and popup.settings.dd_theme then
